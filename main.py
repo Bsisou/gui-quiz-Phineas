@@ -10,10 +10,16 @@ class RecollectApp:
         self.root.title("Recollect")
         self.root.geometry("750x563")  # Same ratio as 1000 x 750
 
+        self.background_image_full = Image.open("assets/background.png")
+
         self.current_screen = None
         self.show_screen(Screens.Homepage(self.root, self).get())
 
         self.root.mainloop()
+
+    def get_background(self, width, height) -> (ImageTk.PhotoImage, Image):
+        background = self.background_image_full.resize((width, height), 1)
+        return background, ImageTk.PhotoImage(background)
 
     def show_screen(self, screen):
         if self.current_screen is not None:
@@ -28,17 +34,24 @@ class Screens:
             self.root = root
             self.app = app
 
-            self.canvas = tk.Canvas(self.root, bg="#54b5c9", borderwidth=0, highlightthickness=0)
+            self.background_image: Image = None
+            self.background_image_tk: (ImageTk.PhotoImage | None) = None  # Only works when it is inside the class scope not local scope
+
+            self.canvas = tk.Canvas(self.root, borderwidth=0, highlightthickness=0)
+            root.update_idletasks()  # Updates root background size
+            self.update_background()
             self.canvas.pack(side="top", fill=tk.BOTH, expand=True)
             self.canvas.grid_columnconfigure(0, weight=1)
 
             self.logo_image = Image.open("assets/logo.png").convert("RGBA").resize((370, 121))  # Must be multiple of 935 x 306
             self.logo_image_tk = ImageTk.PhotoImage(self.logo_image)
-            self.logo_label = tk.Label(self.canvas, image=self.logo_image_tk, bg="#54b5c9", borderwidth=0, highlightthickness=0)
+            self.logo_label = tk.Label(self.canvas, image=self.logo_image_tk, borderwidth=0, highlightthickness=0)
             self.logo_label.grid(row=0, column=0, pady=(50, 0), sticky="")
             self.canvas.update_idletasks()  # Updates canvas coordinates size
+            self.update_logo()
 
             self.buttons = []
+            self.button_backgrounds = []  # Only works when it is inside the class scope not local scope
 
             self.start_button = RoundedButton(
                 self.canvas, text="START", font=("Poppins Bold", 20, "bold"),
@@ -77,9 +90,51 @@ class Screens:
             self.buttons.append(self.quit_button)
 
             self.canvas.update_idletasks()  # Updates canvas coordinates size
+            self.update_buttons()
+
+            self.canvas.bind("<Configure>", self.update_background, add="+")
+            self.canvas.bind("<Configure>", self.update_logo, add="+")
+            self.canvas.bind("<Configure>", self.update_buttons, add="+")
 
         def get(self):
             return self.canvas
+
+        def update_background(self, _=None):
+            # Adjust background stretching etc.
+            width, height = self.root.winfo_width(), self.root.winfo_height()
+            self.background_image, self.background_image_tk = self.app.get_background(width, height)  # Must be in class scope
+            self.canvas.create_image(0, 0, image=self.background_image_tk, anchor="nw", tags="background")  # Don't make one-liner
+
+        def update_logo(self, _=None):
+            self.logo_image_tk = ImageTk.PhotoImage(self.logo_image)  # Don't make one-liner
+            self.logo_label.config(image=self.logo_image_tk)  # Used to remeasure logo coordinates
+
+            # Adjust label background
+            self.canvas.update_idletasks()  # Updates coordinates
+            x1, y1 = self.logo_label.winfo_x(), self.logo_label.winfo_y()
+            x2, y2 = x1 + self.logo_label.winfo_width(), y1 + self.logo_label.winfo_height()
+
+            background_at_bbox = self.background_image.crop((x1, y1, x2, y2))
+            # Merge background (RGB) and logo (RGBA)
+            logo_with_background = Image.new("RGBA", background_at_bbox.size)
+            logo_with_background.paste(background_at_bbox, (0, 0))
+            logo_with_background.paste(self.logo_image, (0, 0), self.logo_image)
+            # logo_with_background.show()  # DEBUG ONLY
+            self.logo_image_tk = ImageTk.PhotoImage(logo_with_background)
+            self.logo_label.config(image=self.logo_image_tk)
+
+        def update_buttons(self, _=None):
+            # Adjust each button background
+            self.canvas.update_idletasks()  # Updates coordinates
+            for button in self.buttons:
+                x1, y1 = button.winfo_x(), button.winfo_y()
+                x2, y2 = x1 + button.winfo_width(), y1 + button.winfo_height()
+
+                background_at_bbox = self.background_image.crop((x1, y1, x2, y2))
+                self.button_backgrounds.append(ImageTk.PhotoImage(background_at_bbox))  # Image needs to be saved to be applied
+                button.create_image(0, 0, image=self.button_backgrounds[-1], anchor="nw")
+
+                button.generate_button()  # Remakes polygon and text
 
         def on_click(self):
             self.app.show_screen(Screens.Login(self.root, self.app).get())
