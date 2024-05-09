@@ -9,8 +9,11 @@ class RecollectApp:
         self.root = root
         self.root.title("Recollect")
         self.root.geometry("750x563")  # Same ratio as 1000 x 750
+        self.root.minsize(750, 563)
 
         self.background_image_full = Image.open("assets/background.png")
+
+        self.blob = Image.open("assets/blob.png")
 
         self.current_screen = None
         self.show_screen(Screens.Homepage(self.root, self).get())
@@ -20,6 +23,10 @@ class RecollectApp:
     def get_background(self, width, height) -> (ImageTk.PhotoImage, Image):
         background = self.background_image_full.resize((width, height), 1)
         return background, ImageTk.PhotoImage(background)
+
+    def get_blob(self, width, height, angle) -> (ImageTk.PhotoImage, Image):
+        blob = self.blob.rotate(angle, Image.NEAREST, expand=True).resize((width, height), 1)
+        return ImageTk.PhotoImage(blob)
 
     def show_screen(self, screen):
         if self.current_screen is not None:
@@ -37,9 +44,12 @@ class Screens:
             self.background_image: Image = None
             self.background_image_tk: (ImageTk.PhotoImage | None) = None  # Only works when it is inside the class scope not local scope
 
+            self.blobs_tk: list = []  # Only works when it is inside the class scope not local scope
+
             self.canvas = tk.Canvas(self.root, borderwidth=0, highlightthickness=0)
             root.update_idletasks()  # Updates root background size
             self.update_background()
+            self.update_blobs()
             self.canvas.pack(side="top", fill=tk.BOTH, expand=True)
             self.canvas.grid_columnconfigure(0, weight=1)
 
@@ -93,6 +103,7 @@ class Screens:
             self.update_buttons()
 
             self.canvas.bind("<Configure>", self.update_background, add="+")
+            self.canvas.bind("<Configure>", self.update_blobs, add="+")
             self.canvas.bind("<Configure>", self.update_logo, add="+")
             self.canvas.bind("<Configure>", self.update_buttons, add="+")
 
@@ -104,6 +115,19 @@ class Screens:
             width, height = self.root.winfo_width(), self.root.winfo_height()
             self.background_image, self.background_image_tk = self.app.get_background(width, height)  # Must be in class scope
             self.canvas.create_image(0, 0, image=self.background_image_tk, anchor="nw", tags="background")  # Don't make one-liner
+
+        def update_blobs(self, _=None):
+            blob_tk = self.app.get_blob(int(root.winfo_width()*0.3333), int(root.winfo_width()*0.3333), -30)  # size=33% of width
+            self.blobs_tk.append(blob_tk)  # Must be in class scope
+            self.canvas.create_image(-60, root.winfo_height() * 0.7, image=self.blobs_tk[-1], anchor="w", tags="blob")  # x=60, y=70% of height
+
+            blob_tk = self.app.get_blob(int(root.winfo_width()*0.2666), int(root.winfo_width()*0.2666), 25)  # size=27% of width
+            self.blobs_tk.append(blob_tk)  # Must be in class scope
+            self.canvas.create_image(root.winfo_width() + 90, root.winfo_height() * 0.25, image=self.blobs_tk[-1], anchor="e", tags="blob")  # x=100% of height + 90px, y=25% of height
+
+            blob_tk = self.app.get_blob(int(root.winfo_width()*0.4), int(root.winfo_width()*0.4), 150)  # size=40% of width
+            self.blobs_tk.append(blob_tk)  # Must be in class scope
+            self.canvas.create_image(root.winfo_width() + 55, root.winfo_height() - 60, image=self.blobs_tk[-1], anchor="e", tags="blob")  # x=100% of height + 55px, y=100% of height - 60%
 
         def update_logo(self, _=None):
             self.logo_image_tk = ImageTk.PhotoImage(self.logo_image)  # Don't make one-liner
