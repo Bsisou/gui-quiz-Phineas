@@ -31,6 +31,8 @@ class RecollectApp:
     def show_screen(self, screen):
         if self.current_screen is not None:
             self.current_screen.pack_forget()
+            self.current_screen.destroy()
+            del self.current_screen
         screen.pack(side="top", fill=tk.BOTH, expand=True)
         self.current_screen = screen
 
@@ -50,7 +52,7 @@ class Screens:
             root.update_idletasks()  # Updates root background size
             self.update_background()
             self.update_blobs()
-            self.canvas.pack(side="top", fill=tk.BOTH, expand=True)
+            # self.canvas.pack(side="top", fill=tk.BOTH, expand=True)  # TODO CHECK IF CAN BE REMOVED: Must pack first so coordinates work
             self.canvas.grid_columnconfigure(0, weight=1)
 
             self.logo_image = Image.open("assets/logo.png").convert("RGBA").resize((370, 121))  # Must be multiple of 935 x 306
@@ -111,23 +113,28 @@ class Screens:
             return self.canvas
 
         def update_background(self, _=None):
+            self.canvas.delete("background")
             # Adjust background stretching etc.
             width, height = self.root.winfo_width(), self.root.winfo_height()
+            del self.background_image, self.background_image_tk
             self.background_image, self.background_image_tk = self.app.get_background(width, height)  # Must be in class scope
             self.canvas.create_image(0, 0, image=self.background_image_tk, anchor="nw", tags="background")  # Don't make one-liner
 
+        def place_blob(self, size: int, angle: int | float, x: int | float, y: int | float, anchor):
+            blob_tk = self.app.get_blob(size, size, angle)
+            self.blobs_tk.append(blob_tk)  # Must be in class scope
+            self.canvas.create_image(x, y, image=self.blobs_tk[-1], anchor=anchor, tags="blob")  # Don't make one-liner
+
         def update_blobs(self, _=None):
-            blob_tk = self.app.get_blob(int(root.winfo_width()*0.3333), int(root.winfo_width()*0.3333), -30)  # size=33% of width
-            self.blobs_tk.append(blob_tk)  # Must be in class scope
-            self.canvas.create_image(-60, root.winfo_height() * 0.7, image=self.blobs_tk[-1], anchor="w", tags="blob")  # x=60, y=70% of height
+            self.canvas.delete("blob")
+            # Clears previous blobs from memory
+            del self.blobs_tk
+            self.blobs_tk = []
 
-            blob_tk = self.app.get_blob(int(root.winfo_width()*0.2666), int(root.winfo_width()*0.2666), 25)  # size=27% of width
-            self.blobs_tk.append(blob_tk)  # Must be in class scope
-            self.canvas.create_image(root.winfo_width() + 90, root.winfo_height() * 0.25, image=self.blobs_tk[-1], anchor="e", tags="blob")  # x=100% of height + 90px, y=25% of height
-
-            blob_tk = self.app.get_blob(int(root.winfo_width()*0.4), int(root.winfo_width()*0.4), 150)  # size=40% of width
-            self.blobs_tk.append(blob_tk)  # Must be in class scope
-            self.canvas.create_image(root.winfo_width() + 55, root.winfo_height() - 60, image=self.blobs_tk[-1], anchor="e", tags="blob")  # x=100% of height + 55px, y=100% of height - 60%
+            # all sizes minimum 100px
+            self.place_blob(max(int(root.winfo_width()*0.3333), 100), -30, -60, root.winfo_height() * 0.7, "w")  # size=33% of width, x=60, y=70% of height
+            self.place_blob(max(int(root.winfo_width()*0.2666), 100), 25, root.winfo_width() + 90, root.winfo_height() * 0.25, "e")  # size=27% of width, x=100% of height + 90px, y=25% of height
+            self.place_blob(max(int(root.winfo_width()*0.4), 100), 150, root.winfo_width() + 55, root.winfo_height() - 60, "e")  # size=40% of width, x=100% of height + 55px, y=100% of height - 60%
 
         def update_logo(self, _=None):
             self.logo_image_tk = ImageTk.PhotoImage(self.logo_image)  # Don't make one-liner
@@ -148,6 +155,10 @@ class Screens:
             self.logo_label.config(image=self.logo_image_tk)
 
         def update_buttons(self, _=None):
+            # Clears previous bottom backgrounds from memory
+            del self.button_backgrounds
+            self.button_backgrounds = []
+
             # Adjust each button background
             self.canvas.update_idletasks()  # Updates coordinates
             for button in self.buttons:
@@ -162,6 +173,9 @@ class Screens:
 
         def on_click(self):
             self.app.show_screen(Screens.Login(self.root, self.app).get())
+
+        def destroy(self):
+            del self
 
     class Login:
         def __init__(self, root: tk.Tk, app: RecollectApp):
@@ -181,6 +195,9 @@ class Screens:
 
         def on_click(self):
             self.app.show_screen(Screens.Homepage(self.root, self.app).get())
+
+        def destroy(self):
+            del self
 
 
 class RoundedButton(tk.Canvas):
