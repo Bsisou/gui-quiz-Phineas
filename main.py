@@ -1,4 +1,5 @@
 import tkinter as tk
+import tkinter.font as tk_font
 
 import pyglet  # pip install pyglet
 from PIL import Image, ImageTk  # pip install pillow
@@ -11,6 +12,10 @@ class RecollectApp:
         self.root.geometry("750x563")  # Same ratio as 1000 x 750
         self.root.minsize(750, 563)
 
+        # Overriding default font if custom font does not work
+        self.defaultFont = tk_font.nametofont("TkDefaultFont")
+        self.defaultFont.configure(family="Calibri")
+
         self.background_image_full = Image.open("assets/background.png")
 
         self.blob = Image.open("assets/blob.png")
@@ -21,6 +26,7 @@ class RecollectApp:
         self.root.mainloop()
 
     def get_background(self, width, height) -> (ImageTk.PhotoImage, Image):
+        # print(f"updated background size: {width, height}")
         background = self.background_image_full.resize((width, height), 1)
         return background, ImageTk.PhotoImage(background)
 
@@ -144,6 +150,12 @@ class Screens:
             self.canvas.update_idletasks()  # Updates coordinates
             x1, y1 = self.logo_label.winfo_x(), self.logo_label.winfo_y()
             x2, y2 = x1 + self.logo_label.winfo_width(), y1 + self.logo_label.winfo_height()
+            # print(f"logo bbox: {x1} {y1}, {x2} {y2}")
+
+            # print(self.logo_label.winfo_reqwidth(), self.logo_label.winfo_reqheight())
+            # print(self.logo_label.winfo_width(), self.logo_label.winfo_height())
+            # print(self.logo_label.winfo_x(), self.logo_label.winfo_y())
+            # print(self.logo_label.winfo_rootx(), self.logo_label.winfo_rooty())
 
             background_at_bbox = self.background_image.crop((x1, y1, x2, y2))
             # Merge background (RGB) and logo (RGBA)
@@ -164,6 +176,7 @@ class Screens:
             for button in self.buttons:
                 x1, y1 = button.winfo_x(), button.winfo_y()
                 x2, y2 = x1 + button.winfo_width(), y1 + button.winfo_height()
+                # print(f"button bbox: {x1} {y1}, {x2} {y2}")
 
                 background_at_bbox = self.background_image.crop((x1, y1, x2, y2))
                 self.button_backgrounds.append(ImageTk.PhotoImage(background_at_bbox))  # Image needs to be saved to be applied
@@ -281,6 +294,7 @@ class RoundedButton(tk.Canvas):
         self.resize()
 
     def resize(self, _=None):
+        # print("resizing")
         text_bbox = self.bbox(self.text_obj)
         width = max(self.winfo_width(), text_bbox[2] - text_bbox[0] + self.text_padding) - 1  # -1 pixel size so border is not cut off
         height = max(self.winfo_height(), text_bbox[3] - text_bbox[1] + self.text_padding) - 1  # -1 pixel size so border is not cut off
