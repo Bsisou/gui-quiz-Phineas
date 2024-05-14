@@ -51,25 +51,30 @@ class Screens:
 
             self.background_image: Image = None
             self.background_image_tk: (ImageTk.PhotoImage | None) = None  # Only works when it is inside the class scope not local scope
-
             self.blobs_tk: list = []  # Only works when it is inside the class scope not local scope
 
             self.canvas = tk.Canvas(self.root, borderwidth=0, highlightthickness=0)
             root.update_idletasks()  # Updates root background size
             self.update_background()
             self.update_blobs()
+
             # self.canvas.pack(side="top", fill=tk.BOTH, expand=True)  # TODO CHECK IF CAN BE REMOVED: Must pack first so coordinates work
             self.canvas.grid_columnconfigure(0, weight=1)
 
-            self.logo_image = Image.open("assets/logo.png").convert("RGBA").resize((370, 121))  # Must be multiple of 935 x 306
-            self.logo_image_tk = ImageTk.PhotoImage(self.logo_image)
-            self.logo_label = tk.Label(self.canvas, image=self.logo_image_tk, borderwidth=0, highlightthickness=0)
-            self.logo_label.grid(row=0, column=0, pady=(50, 0), sticky="")
-            self.canvas.update_idletasks()  # Updates canvas coordinates size
-            self.update_logo()
-
+            self.transparent_images = []
             self.buttons = []
             self.button_backgrounds = []  # Only works when it is inside the class scope not local scope
+
+            logo_image = Image.open("assets/logo.png").convert("RGBA").resize((370, 121))  # Must be multiple of 935 x 306
+            logo_image_tk = ImageTk.PhotoImage(logo_image)
+            self.logo_label = tk.Label(self.canvas, image=logo_image_tk, borderwidth=0, highlightthickness=0)
+            self.logo_label.grid(row=0, column=0, pady=(50, 0), sticky="")
+            self.transparent_images.append({
+                "label": self.logo_label,
+                "raw_image": logo_image,
+                "updated_image": tk.PhotoImage()  # Used to save only
+            })
+            del logo_image, logo_image_tk
 
             self.start_button = RoundedButton(
                 self.canvas, text="START", font=("Poppins Bold", 20, "bold"),
@@ -108,11 +113,12 @@ class Screens:
             self.buttons.append(self.quit_button)
 
             self.canvas.update_idletasks()  # Updates canvas coordinates size
+            self.update_transparent_images()
             self.update_buttons()
 
             self.canvas.bind("<Configure>", self.update_background, add="+")
             self.canvas.bind("<Configure>", self.update_blobs, add="+")
-            self.canvas.bind("<Configure>", self.update_logo, add="+")
+            self.canvas.bind("<Configure>", self.update_transparent_images, add="+")
             self.canvas.bind("<Configure>", self.update_buttons, add="+")
 
         def get(self):
@@ -138,33 +144,30 @@ class Screens:
             self.blobs_tk = []
 
             # all sizes minimum 100px
-            self.place_blob(max(int(root.winfo_width()*0.3333), 100), -30, -60, root.winfo_height() * 0.7, "w")  # size=33% of width, x=60, y=70% of height
-            self.place_blob(max(int(root.winfo_width()*0.2666), 100), 25, root.winfo_width() + 90, root.winfo_height() * 0.25, "e")  # size=27% of width, x=100% of height + 90px, y=25% of height
-            self.place_blob(max(int(root.winfo_width()*0.4), 100), 150, root.winfo_width() + 55, root.winfo_height() - 60, "e")  # size=40% of width, x=100% of height + 55px, y=100% of height - 60%
+            self.place_blob(max(int(root.winfo_width() * 0.3333), 100), -30, -60, root.winfo_height() * 0.7, "w")  # size=33% of width, x=60, y=70% of height
+            self.place_blob(max(int(root.winfo_width() * 0.2666), 100), 25, root.winfo_width() + 90, root.winfo_height() * 0.25, "e")  # size=27% of width, x=100% of height + 90px, y=25% of height
+            self.place_blob(max(int(root.winfo_width() * 0.4), 100), 150, root.winfo_width() + 55, root.winfo_height() - 60, "e")  # size=40% of width, x=100% of height + 55px, y=100% of height - 60%
 
-        def update_logo(self, _=None):
-            self.logo_image_tk = ImageTk.PhotoImage(self.logo_image)  # Don't make one-liner
-            self.logo_label.config(image=self.logo_image_tk)  # Used to remeasure logo coordinates
+        def update_transparent_images(self, _=None):
+            for transparent_image_data in self.transparent_images:
+                image_label = transparent_image_data['label']
+                image = transparent_image_data['raw_image']
 
-            # Adjust label background
-            self.canvas.update_idletasks()  # Updates coordinates
-            x1, y1 = self.logo_label.winfo_x(), self.logo_label.winfo_y()
-            x2, y2 = x1 + self.logo_label.winfo_width(), y1 + self.logo_label.winfo_height()
-            # print(f"logo bbox: {x1} {y1}, {x2} {y2}")
+                transparent_image_data['updated_image'] = ImageTk.PhotoImage(image)  # Don't make one-liner
+                image_label.config(image=transparent_image_data['updated_image'])  # Used to remeasure image coordinates
 
-            # print(self.logo_label.winfo_reqwidth(), self.logo_label.winfo_reqheight())
-            # print(self.logo_label.winfo_width(), self.logo_label.winfo_height())
-            # print(self.logo_label.winfo_x(), self.logo_label.winfo_y())
-            # print(self.logo_label.winfo_rootx(), self.logo_label.winfo_rooty())
+                # Adjust label background
+                self.canvas.update_idletasks()  # Updates coordinates
+                x1, y1 = image_label.winfo_x(), image_label.winfo_y()
+                x2, y2 = x1 + image_label.winfo_width(), y1 + image_label.winfo_height()
 
-            background_at_bbox = self.background_image.crop((x1, y1, x2, y2))
-            # Merge background (RGB) and logo (RGBA)
-            logo_with_background = Image.new("RGBA", background_at_bbox.size)
-            logo_with_background.paste(background_at_bbox, (0, 0))
-            logo_with_background.paste(self.logo_image, (0, 0), self.logo_image)
-            # logo_with_background.show()  # DEBUG ONLY
-            self.logo_image_tk = ImageTk.PhotoImage(logo_with_background)
-            self.logo_label.config(image=self.logo_image_tk)
+                background_at_bbox = self.background_image.crop((x1, y1, x2, y2))
+                # Merge background (RGB) and image (RGBA)
+                image_with_background = Image.new("RGBA", background_at_bbox.size)
+                image_with_background.paste(background_at_bbox, (0, 0))
+                image_with_background.paste(image, (0, 0), image)
+                transparent_image_data['updated_image'] = ImageTk.PhotoImage(image_with_background)
+                image_label.config(image=transparent_image_data['updated_image'])
 
         def update_buttons(self, _=None):
             # Clears previous bottom backgrounds from memory
@@ -200,13 +203,13 @@ class Screens:
             label = tk.Label(self.frame, text="LOGIN")
             label.pack()
 
-            button = tk.Button(self.frame, text="BACK", command=self.on_click)
+            button = tk.Button(self.frame, text="BACK", command=self.on_back)
             button.pack()
 
         def get(self):
             return self.frame
 
-        def on_click(self):
+        def on_back(self):
             self.app.show_screen(Screens.Homepage(self.root, self.app).get())
 
         def destroy(self):
