@@ -25,10 +25,8 @@ class RecollectApp:
 
         self.root.mainloop()
 
-    def get_background(self, width, height) -> (ImageTk.PhotoImage, Image):
-        # print(f"updated background size: {width, height}")
-        background = self.background_image_full.resize((width, height), 1)
-        return background, ImageTk.PhotoImage(background)
+    def get_background(self) -> Image:
+        return self.background_image_full
 
     def get_blob(self, width, height, angle) -> (ImageTk.PhotoImage, Image):
         blob = self.blob.rotate(angle, Image.NEAREST, expand=True).resize((width, height), 1)
@@ -48,17 +46,20 @@ class Screens:
         def __init__(self, root: tk.Tk, app: RecollectApp):
             self.root = root
             self.app = app
+            self.has_background = True
 
-            self.background_image: Image = None
-            self.background_image_tk: (ImageTk.PhotoImage | None) = None  # Only works when it is inside the class scope not local scope
-            self.blobs_tk: list = []  # Only works when it is inside the class scope not local scope
+            self.current_background: Image = None
+            self._background_image_tk: (ImageTk.PhotoImage | None) = None  # Only works when it is inside the class scope not local scope
+            self._blobs_tk: list = []  # Only works when it is inside the class scope not local scope
 
             self.canvas = tk.Canvas(self.root, borderwidth=0, highlightthickness=0)
-            root.update_idletasks()  # Updates root background size
-            self.update_background()
-            self.update_blobs()
 
-            # self.canvas.pack(side="top", fill=tk.BOTH, expand=True)  # TODO CHECK IF CAN BE REMOVED: Must pack first so coordinates work
+            if self.has_background:
+                root.update_idletasks()  # Updates root background size
+                self.update_background()
+                self.update_blobs()
+
+            # self.canvas.pack(side="top", fill=tk.BOTH, expand=True)  # can be removed? (pack first so coordinates work)
             self.canvas.grid_columnconfigure(0, weight=1)
 
             self.transparent_images = []
@@ -66,15 +67,16 @@ class Screens:
             self.button_backgrounds = []  # Only works when it is inside the class scope not local scope
 
             logo_image = Image.open("assets/logo.png").convert("RGBA").resize((370, 121))  # Must be multiple of 935 x 306
-            logo_image_tk = ImageTk.PhotoImage(logo_image)
-            self.logo_label = tk.Label(self.canvas, image=logo_image_tk, borderwidth=0, highlightthickness=0)
-            self.logo_label.grid(row=0, column=0, pady=(50, 0), sticky="")
-            self.transparent_images.append({
+            self.logo_label = tk.Label(self.canvas, borderwidth=0, highlightthickness=0)
+            image_data = {
                 "label": self.logo_label,
                 "raw_image": logo_image,
-                "updated_image": tk.PhotoImage()  # Used to save only
-            })
-            del logo_image, logo_image_tk
+                "updated_image": ImageTk.PhotoImage(logo_image)  # Used to save only
+            }
+            self.logo_label.config(image=image_data['updated_image'])
+            self.logo_label.grid(row=0, column=0, pady=(50, 0), sticky="")
+            self.transparent_images.append(image_data)
+            del logo_image
 
             self.start_button = RoundedButton(
                 self.canvas, text="START", font=("Poppins Bold", 20, "bold"),
@@ -112,14 +114,15 @@ class Screens:
             self.quit_button.grid(row=3, column=0, pady=(20, 20), sticky="")
             self.buttons.append(self.quit_button)
 
-            self.canvas.update_idletasks()  # Updates canvas coordinates size
-            self.update_transparent_images()
-            self.update_buttons()
+            if self.has_background:
+                self.canvas.update_idletasks()  # Updates canvas coordinates size
+                self.update_transparent_images()
+                self.update_buttons()
 
-            self.canvas.bind("<Configure>", self.update_background, add="+")
-            self.canvas.bind("<Configure>", self.update_blobs, add="+")
-            self.canvas.bind("<Configure>", self.update_transparent_images, add="+")
-            self.canvas.bind("<Configure>", self.update_buttons, add="+")
+                self.canvas.bind("<Configure>", self.update_background, add="+")
+                self.canvas.bind("<Configure>", self.update_blobs, add="+")
+                self.canvas.bind("<Configure>", self.update_transparent_images, add="+")
+                self.canvas.bind("<Configure>", self.update_buttons, add="+")
 
         def get(self):
             return self.canvas
@@ -128,20 +131,21 @@ class Screens:
             self.canvas.delete("background")
             # Adjust background stretching etc.
             width, height = self.root.winfo_width(), self.root.winfo_height()
-            del self.background_image, self.background_image_tk
-            self.background_image, self.background_image_tk = self.app.get_background(width, height)  # Must be in class scope
-            self.canvas.create_image(0, 0, image=self.background_image_tk, anchor="nw", tags="background")  # Don't make one-liner
+            del self.current_background, self._background_image_tk
+            self.current_background = self.app.get_background().resize((width, height), 1)
+            self._background_image_tk = ImageTk.PhotoImage(self.current_background)  # Must be in class scope
+            self.canvas.create_image(0, 0, image=self._background_image_tk, anchor="nw", tags="background")  # Don't make one-liner
 
         def place_blob(self, size: int, angle: int | float, x: int | float, y: int | float, anchor):
             blob_tk = self.app.get_blob(size, size, angle)
-            self.blobs_tk.append(blob_tk)  # Must be in class scope
-            self.canvas.create_image(x, y, image=self.blobs_tk[-1], anchor=anchor, tags="blob")  # Don't make one-liner
+            self._blobs_tk.append(blob_tk)  # Must be in class scope
+            self.canvas.create_image(x, y, image=self._blobs_tk[-1], anchor=anchor, tags="blob")  # Don't make one-liner
 
         def update_blobs(self, _=None):
             self.canvas.delete("blob")
             # Clears previous blobs from memory
-            del self.blobs_tk
-            self.blobs_tk = []
+            del self._blobs_tk
+            self._blobs_tk = []
 
             # all sizes minimum 100px
             self.place_blob(max(int(root.winfo_width() * 0.3333), 100), -30, -60, root.winfo_height() * 0.7, "w")  # size=33% of width, x=60, y=70% of height
@@ -149,6 +153,9 @@ class Screens:
             self.place_blob(max(int(root.winfo_width() * 0.4), 100), 150, root.winfo_width() + 55, root.winfo_height() - 60, "e")  # size=40% of width, x=100% of height + 55px, y=100% of height - 60%
 
         def update_transparent_images(self, _=None):
+            if self.has_background is False or self.current_background is None:  # No background or current background not showing
+                return
+
             for transparent_image_data in self.transparent_images:
                 image_label = transparent_image_data['label']
                 image = transparent_image_data['raw_image']
@@ -161,7 +168,7 @@ class Screens:
                 x1, y1 = image_label.winfo_x(), image_label.winfo_y()
                 x2, y2 = x1 + image_label.winfo_width(), y1 + image_label.winfo_height()
 
-                background_at_bbox = self.background_image.crop((x1, y1, x2, y2))
+                background_at_bbox = self.current_background.crop((x1, y1, x2, y2))
                 # Merge background (RGB) and image (RGBA)
                 image_with_background = Image.new("RGBA", background_at_bbox.size)
                 image_with_background.paste(background_at_bbox, (0, 0))
@@ -170,6 +177,9 @@ class Screens:
                 image_label.config(image=transparent_image_data['updated_image'])
 
         def update_buttons(self, _=None):
+            if self.has_background is False or self.current_background is None:  # No background or current background not showing
+                return
+
             # Clears previous bottom backgrounds from memory
             del self.button_backgrounds
             self.button_backgrounds = []
@@ -181,7 +191,7 @@ class Screens:
                 x2, y2 = x1 + button.winfo_width(), y1 + button.winfo_height()
                 # print(f"button bbox: {x1} {y1}, {x2} {y2}")
 
-                background_at_bbox = self.background_image.crop((x1, y1, x2, y2))
+                background_at_bbox = self.current_background.crop((x1, y1, x2, y2))
                 self.button_backgrounds.append(ImageTk.PhotoImage(background_at_bbox))  # Image needs to be saved to be applied
                 button.create_image(0, 0, image=self.button_backgrounds[-1], anchor="nw")
 
