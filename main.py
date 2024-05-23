@@ -150,6 +150,7 @@ class BaseScreen:
             button.generate_button()  # Remakes polygon and text
 
     def destroy(self):
+        self.canvas.unbind("<Configure>")
         del self
 
 
@@ -177,7 +178,7 @@ class Screens:
                 button_hover_background="#4b61c4", button_hover_foreground="#000000",
                 button_press_background="#2d3b77", button_press_foreground="#000000",
                 outline_colour="black", outline_width=1,
-                command=self.on_click
+                command=self.on_click_start
             )
             self.start_button.grid(row=1, column=0, pady=(30, 0), sticky="")
             self.buttons.append(self.start_button)
@@ -189,7 +190,7 @@ class Screens:
                 button_hover_background="#4b61c4", button_hover_foreground="#000000",
                 button_press_background="#2d3b77", button_press_foreground="#000000",
                 outline_colour="black", outline_width=1,
-                command=self.on_click
+                command=self.on_click_options
             )
             self.options_button.grid(row=2, column=0, pady=(20, 0), sticky="")
             self.buttons.append(self.options_button)
@@ -208,21 +209,91 @@ class Screens:
 
             self.finish_init()
 
-        def on_click(self):
+        def on_click_start(self):
+            self.destroy()
             self.app.show_screen(Screens.Login(self.root, self.app).get())
+
+        def on_click_options(self):
+            ...
+            # self.destroy()
 
     class Login(BaseScreen):
         def __init__(self, root: tk.Tk, app: RecollectApp):
             super().__init__(root, app, True)  # Implements all variables and function from base class "BaseScreen"
 
-            label = tk.Label(self.canvas, text="LOGIN")
-            label.pack()
+            self.logo_frame = tk.Frame(self.canvas, background="#53afc8")
+            self.logo_frame.pack(pady=(10, 0), padx=(10, 0), anchor="nw")
 
-            button = tk.Button(self.canvas, text="BACK", command=self.on_back)
-            button.pack()
+            self.logo_image = ImageTk.PhotoImage(Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90)))  # Must be multiple of 1038 x 404
+            self.logo_label = tk.Label(self.logo_frame, borderwidth=0, highlightthickness=0, bg="#53afc8", image=self.logo_image)
+            self.logo_label.pack(anchor="nw", padx=(5, 0), pady=(3, 3), side=tk.LEFT)
+
+            self.logo_title = tk.Label(self.logo_frame, text="Sign In", font=("Poppins Regular", 15), bg="#53afc8")
+            self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
+
+            self.back_button = RoundedButton(
+                self.canvas, text="BACK", font=("Poppins Bold", 15, "bold"),
+                width=210, height=50, radius=29, text_padding=0,
+                button_background="#5F7BF8", button_foreground="#000000",
+                button_hover_background="#4b61c4", button_hover_foreground="#000000",
+                button_press_background="#2d3b77", button_press_foreground="#000000",
+                outline_colour="black", outline_width=1,
+                command=self.on_back
+            )
+            self.back_button.pack(pady=(5, 0), padx=(10, 0), anchor="nw")
+            self.buttons.append(self.back_button)
+
+            self.heading = tk.Label(self.canvas, text="Sign In", font=("Poppins Bold", 15, "bold"), bg="#53afc8")
+            self.heading.pack(anchor="center", pady=(10, 10))
+
+            self.username_entry = tk.Entry(self.canvas, font=("Poppins Regular", 11), width=25)
+            self.username_entry.pack(anchor="center", pady=(5, 5))
+            self.username_entry.bind("<FocusIn>", lambda event: self.on_focusin_entry(self.username_entry))
+            self.username_entry.bind("<FocusOut>", lambda event: self.on_focusout_entry(self.username_entry, "Username"))
+            self.on_focusout_entry(self.username_entry, "Username")
+
+            self.password_entry = tk.Entry(self.canvas, font=("Poppins Regular", 11), width=25)
+            self.password_entry.pack(anchor="center", pady=(5, 5))
+            self.password_entry.bind("<FocusIn>", lambda event: self.on_focusin_entry(self.password_entry))
+            self.password_entry.bind("<FocusOut>", lambda event: self.on_focusout_entry(self.password_entry, "Password"))
+            self.on_focusout_entry(self.password_entry, "Password")
+
+            self.error_message = tk.Label(self.canvas, text="Error message goes here", font=("Poppins Regular", 9), bg="#53afc8", fg="red")
+            self.error_message.pack(anchor="center", pady=(5, 10))
+
+            self.sign_in_button = RoundedButton(
+                self.canvas, text="SIGN IN", font=("Poppins Bold", 15, "bold"),
+                width=250, height=50, radius=29, text_padding=0,
+                button_background="#5F7BF8", button_foreground="#000000",
+                button_hover_background="#4b61c4", button_hover_foreground="#000000",
+                button_press_background="#2d3b77", button_press_foreground="#000000",
+                outline_colour="black", outline_width=1,
+                command=self.on_sign_in
+            )
+            self.sign_in_button.pack(anchor="center", pady=(5, 5))
+            self.buttons.append(self.sign_in_button)
+
+            self.finish_init()
 
         def on_back(self):
+            self.destroy()
             self.app.show_screen(Screens.Homepage(self.root, self.app).get())
+
+        def on_sign_in(self):
+            ...
+
+        @staticmethod
+        def on_focusin_entry(entry: tk.Entry):
+            entry.config(fg="black")
+            if entry.get().strip() in ["Username", "Password"]:
+                entry.delete(0, tk.END)
+
+        @staticmethod
+        def on_focusout_entry(entry: tk.Entry, hint: str):
+            if entry.get().strip() == "":
+                entry.delete(0, tk.END)
+                entry.insert(0, hint)
+                entry.config(fg="grey")
 
 
 class RoundedButton(tk.Canvas):
