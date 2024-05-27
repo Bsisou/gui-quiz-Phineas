@@ -1,8 +1,14 @@
+import os
 import tkinter as tk
 import tkinter.font as tk_font
 
+import psutil  # for memory usage only - pip install psutil
 import pyglet  # pip install pyglet
 from PIL import Image, ImageTk  # pip install pillow
+
+
+def get_memory():
+    print(f"Memory usage: {psutil.Process(os.getpid()).memory_info().rss / 1e+6} MB")
 
 
 class RecollectApp:
@@ -65,6 +71,9 @@ class BaseScreen:
         self.buttons = []
         self.button_backgrounds = []  # Only works when it is inside the class scope not local scope
 
+        print("Created screen with memory usage:")
+        get_memory()
+
     def finish_init(self):
         if self.has_background:
             self.canvas.update_idletasks()  # Updates canvas coordinates size
@@ -75,6 +84,9 @@ class BaseScreen:
             self.canvas.bind("<Configure>", self.update_blobs, add="+")
             self.canvas.bind("<Configure>", self.update_transparent_images, add="+")
             self.canvas.bind("<Configure>", self.update_buttons, add="+")
+
+        print("Finished creating screen with memory usage:")
+        get_memory()
 
     def get(self):
         return self.canvas
@@ -248,17 +260,17 @@ class Screens:
 
             self.username_entry = tk.Entry(self.canvas, font=("Poppins Regular", 11), width=25)
             self.username_entry.pack(anchor="center", pady=(5, 5))
-            self.username_entry.bind("<FocusIn>", lambda event: self.on_focusin_entry(self.username_entry))
+            self.username_entry.bind("<FocusIn>", lambda event: self.on_focusin_entry(self.username_entry, "Username"))
             self.username_entry.bind("<FocusOut>", lambda event: self.on_focusout_entry(self.username_entry, "Username"))
             self.on_focusout_entry(self.username_entry, "Username")
 
             self.password_entry = tk.Entry(self.canvas, font=("Poppins Regular", 11), width=25)
             self.password_entry.pack(anchor="center", pady=(5, 5))
-            self.password_entry.bind("<FocusIn>", lambda event: self.on_focusin_entry(self.password_entry))
+            self.password_entry.bind("<FocusIn>", lambda event: self.on_focusin_entry(self.password_entry, "Password"))
             self.password_entry.bind("<FocusOut>", lambda event: self.on_focusout_entry(self.password_entry, "Password"))
             self.on_focusout_entry(self.password_entry, "Password")
 
-            self.error_message = tk.Label(self.canvas, text="Error message goes here", font=("Poppins Regular", 9), bg="#53afc8", fg="red")
+            self.error_message = tk.Label(self.canvas, text="", font=("Poppins Regular", 9), bg="#53afc8", fg="red")
             self.error_message.pack(anchor="center", pady=(5, 10))
 
             self.sign_in_button = RoundedButton(
@@ -279,12 +291,48 @@ class Screens:
             self.destroy()
             self.app.show_screen(Screens.Homepage(self.root, self.app).get())
 
+        def check_met_criteria(self):
+            username_empty = self.username_entry.get().strip() in ["Username", ""]
+            password_empty = self.password_entry.get().strip() in ["Password", ""]
+            if username_empty or password_empty:
+                if username_empty:
+                    self.username_entry.config(bg="#f77b7a")
+                if password_empty:
+                    self.password_entry.config(bg="#f77b7a")
+                self.error_message.config(text="Cannot have blank username or password.")
+                return False
+
+            if len(self.password_entry.get()) <= 7:
+                self.error_message.config(text="Password must be greater than 7 characters.")
+                return False
+
+            has_upper = False
+            has_lower = False
+            has_digit = False
+            for i in self.password_entry.get():
+                if i.isupper():
+                    has_upper = True
+                if i.islower():
+                    has_lower = True
+                if i.isdigit():
+                    has_digit = True
+            if not has_upper or not has_lower or not has_digit:
+                self.error_message.config(text="Message must have a number, uppercase, and lowercase characters.")
+                return False
+
         def on_sign_in(self):
+            self.error_message.config(text="")
+
+            if not self.check_met_criteria():
+                return
+
             ...
 
         @staticmethod
-        def on_focusin_entry(entry: tk.Entry):
-            entry.config(fg="black")
+        def on_focusin_entry(entry: tk.Entry, hint: str):
+            entry.config(fg="black", bg="white")
+            if hint == "Password":
+                entry.config(show="*")
             if entry.get().strip() in ["Username", "Password"]:
                 entry.delete(0, tk.END)
 
@@ -293,7 +341,7 @@ class Screens:
             if entry.get().strip() == "":
                 entry.delete(0, tk.END)
                 entry.insert(0, hint)
-                entry.config(fg="grey")
+                entry.config(fg="grey", show="")
 
 
 class RoundedButton(tk.Canvas):
