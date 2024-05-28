@@ -1,7 +1,8 @@
+import json
 import os
 import tkinter as tk
 import tkinter.font as tk_font
-
+import hashlib
 import psutil  # for memory usage only - pip install psutil
 import pyglet  # pip install pyglet
 from PIL import Image, ImageTk  # pip install pillow
@@ -17,6 +18,8 @@ class RecollectApp:
         self.root.title("Recollect")
         self.root.geometry("750x563")  # Same ratio as 1000 x 750
         self.root.minsize(750, 563)
+
+        self.data_file = "data.json"
 
         # Overriding default font if custom font does not work
         self.defaultFont = tk_font.nametofont("TkDefaultFont")
@@ -37,6 +40,50 @@ class RecollectApp:
     def get_blob(self, width, height, angle) -> (ImageTk.PhotoImage, Image):
         blob = self.blob.rotate(angle, Image.NEAREST, expand=True).resize((width, height), 1)
         return ImageTk.PhotoImage(blob)
+
+    @staticmethod
+    def encrypt_password(password: str):
+        sha256 = hashlib.sha256()
+        sha256.update(password.encode('utf-8'))
+        return sha256.hexdigest()
+
+    def check_if_data_file_exists(self):
+        # Check if data file exists
+        if not os.path.exists(self.data_file):
+            with open("data.json", "w+") as data_file:
+                json.dump({"users": {}}, data_file)
+
+    def get_user_data(self, username):
+        self.check_if_data_file_exists()
+
+        try:
+            with open("data.json", "r+") as data_file:
+                data = json.load(data_file)
+                return data['users'][username]
+        except KeyError:
+            return None
+
+    def add_new_user_data(self, username, password):
+        self.check_if_data_file_exists()
+
+        with open("data.json", "r+") as data_file:
+            data = json.load(data_file)
+            data['users'][username] = {
+                "password": self.encrypt_password(password)
+            }
+            data_file.seek(0)
+            data_file.truncate()
+            json.dump(data, data_file, indent=2)
+
+    def rewrite_user_data(self, username, user_data):
+        self.check_if_data_file_exists()
+
+        with open("data.json", "r+") as data_file:
+            data = json.load(data_file)
+            data['users'][username] = user_data
+            data_file.seek(0)
+            data_file.truncate()
+            json.dump(data, data_file, indent=2)
 
     def show_screen(self, screen):
         if self.current_screen is not None:
@@ -303,6 +350,7 @@ class Screens:
                 return False
 
             if len(self.password_entry.get()) <= 7:
+                self.password_entry.config(bg="#f77b7a")
                 self.error_message.config(text="Password must be greater than 7 characters.")
                 return False
 
@@ -317,16 +365,31 @@ class Screens:
                 if i.isdigit():
                     has_digit = True
             if not has_upper or not has_lower or not has_digit:
-                self.error_message.config(text="Message must have a number, uppercase, and lowercase characters.")
+                self.password_entry.config(bg="#f77b7a")
+                self.error_message.config(text="Password must have a number, uppercase, and lowercase characters.")
                 return False
+
+            return True
 
         def on_sign_in(self):
             self.error_message.config(text="")
+            self.root.focus()  # Unselects entry boxes
 
             if not self.check_met_criteria():
                 return
 
-            ...
+            entered_username = self.username_entry.get().strip()
+            entered_password = self.password_entry.get()
+
+            user_data = self.app.get_user_data(entered_username)
+            if user_data is None:
+                self.app.add_new_user_data(entered_username, entered_password)
+            elif self.app.encrypt_password(entered_password) != user_data['password']:
+                self.password_entry.config(bg="#f77b7a")
+                self.error_message.config(text="Incorrect password.")
+                return
+
+            # Password ok
 
         @staticmethod
         def on_focusin_entry(entry: tk.Entry, hint: str):
