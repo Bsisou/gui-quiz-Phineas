@@ -18,6 +18,7 @@ class RecollectApp:
         self.root.title("Recollect")
         self.root.geometry("750x563")  # Same ratio as 1000 x 750
         self.root.minsize(750, 563)
+        self.username = None
 
         self.data_file = "data.json"
 
@@ -383,7 +384,7 @@ class Screens:
             if not self.check_met_criteria():
                 return
 
-            entered_username = self.username_entry.get().strip()
+            entered_username = self.username_entry.get().strip().lower()
             entered_password = self.password_entry.get()
 
             user_data = self.app.get_user_data(entered_username)
@@ -394,7 +395,11 @@ class Screens:
                 self.error_message.config(text="Incorrect password.")
                 return
 
-            # Password ok
+            # Password is correct / Account created
+            self.app.username = entered_username
+
+            self.destroy()
+            self.app.show_screen(Screens.GameSelection(self.root, self.app).get())
 
         @staticmethod
         def on_focusin_entry(entry: tk.Entry, hint: str):
@@ -410,6 +415,22 @@ class Screens:
                 entry.delete(0, tk.END)
                 entry.insert(0, hint)
                 entry.config(fg="grey", show="")
+
+    class GameSelection(BaseScreen):
+        def __init__(self, root: tk.Tk, app: RecollectApp):
+            super().__init__(root, app, True)  # Implements all variables and function from base class "BaseScreen"
+
+            self.logo_frame = tk.Frame(self.canvas, background="#53afc8")
+            self.logo_frame.pack(pady=(10, 0), padx=(10, 0), anchor="nw")
+
+            self.logo_image = ImageTk.PhotoImage(Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90)))  # Must be multiple of 1038 x 404
+            self.logo_label = tk.Label(self.logo_frame, borderwidth=0, highlightthickness=0, bg="#53afc8", image=self.logo_image)
+            self.logo_label.pack(anchor="nw", padx=(5, 0), pady=(3, 3), side=tk.LEFT)
+
+            self.logo_title = tk.Label(self.logo_frame, text="Gamemodes", font=("Poppins Regular", 15), bg="#53afc8")
+            self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
+
+            self.finish_init()
 
 
 class RoundedButton(tk.Canvas):
