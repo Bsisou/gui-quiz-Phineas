@@ -42,10 +42,15 @@ class RecollectApp:
         return ImageTk.PhotoImage(blob)
 
     @staticmethod
-    def encrypt_password(password: str):
+    def encrypt_str(raw: str):
         sha256 = hashlib.sha256()
-        sha256.update(password.encode('utf-8'))
+        sha256.update(raw.encode('utf-8'))
         return sha256.hexdigest()
+
+    def encrypt_password(self, password: str):
+        for _ in range(256):  # Encrypt 256 times
+            password = self.encrypt_str(password)
+        return password
 
     def check_if_data_file_exists(self):
         # Check if data file exists
