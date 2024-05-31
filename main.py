@@ -121,8 +121,8 @@ class BaseScreen:
         self.canvas.grid_columnconfigure(0, weight=1)
 
         self.transparent_images = []
-        self.buttons = []
-        self.button_backgrounds = []  # Only works when it is inside the class scope not local scope
+        self.widgets = []
+        self.widget_backgrounds = []  # Only works when it is inside the class scope not local scope
 
         print("Created screen with memory usage:")
         get_memory()
@@ -131,12 +131,12 @@ class BaseScreen:
         if self.has_background:
             self.canvas.update_idletasks()  # Updates canvas coordinates size
             self.update_transparent_images()
-            self.update_buttons()
+            self.update_widgets_background()
 
             self.canvas.bind("<Configure>", self.update_background, add="+")
             self.canvas.bind("<Configure>", self.update_blobs, add="+")
             self.canvas.bind("<Configure>", self.update_transparent_images, add="+")
-            self.canvas.bind("<Configure>", self.update_buttons, add="+")
+            self.canvas.bind("<Configure>", self.update_widgets_background, add="+")
 
         print("Finished creating screen with memory usage:")
         get_memory()
@@ -193,26 +193,37 @@ class BaseScreen:
             transparent_image_data['updated_image'] = ImageTk.PhotoImage(image_with_background)
             image_label.config(image=transparent_image_data['updated_image'])
 
-    def update_buttons(self, _=None):
+    def update_widgets_background(self, _=None, specific_widget=None):
         if self.has_background is False or self.current_background is None:  # No background or current background not showing
             return
 
         # Clears previous bottom backgrounds from memory
-        del self.button_backgrounds
-        self.button_backgrounds = []
+        del self.widget_backgrounds
+        self.widget_backgrounds = []
 
         # Adjust each button background
         self.canvas.update_idletasks()  # Updates coordinates
-        for button in self.buttons:
-            x1, y1 = button.winfo_x(), button.winfo_y()
-            x2, y2 = x1 + button.winfo_width(), y1 + button.winfo_height()
+
+        update_widgets = self.widgets if specific_widget is None else [specific_widget]
+        for widget in update_widgets:
+            x1, y1 = widget.winfo_x(), widget.winfo_y()
+            x2, y2 = x1 + widget.winfo_width(), y1 + widget.winfo_height()
             # print(f"button bbox: {x1} {y1}, {x2} {y2}")
 
             background_at_bbox = self.current_background.crop((x1, y1, x2, y2))
-            self.button_backgrounds.append(ImageTk.PhotoImage(background_at_bbox))  # Image needs to be saved to be applied
-            button.create_image(0, 0, image=self.button_backgrounds[-1], anchor="nw")
+            self.widget_backgrounds.append(ImageTk.PhotoImage(background_at_bbox))  # Image needs to be saved to be applied
 
-            button.generate_button()  # Remakes polygon and text
+            print(widget.__class__.__name__)
+            if widget.__class__.__name__ in ["RoundedButton", "Canvas"]:
+                print("Updated with .create_image")
+                widget.create_image(0, 0, image=self.widget_backgrounds[-1], anchor="nw")
+            elif widget.__class__.__name__ == "Label":
+                print("Updated with label.config")
+                widget.config(image=self.widget_backgrounds[-1], compound="center", bd=0, borderwidth=0, highlightthickness=0, relief="flat", padx=0, pady=0)
+
+            if widget.__class__.__name__ == "RoundedButton":
+                print("Regened")
+                widget.generate_button()  # Remakes polygon and text
 
     def destroy(self):
         self.canvas.unbind("<Configure>")
@@ -246,7 +257,7 @@ class Screens:
                 command=self.on_click_start
             )
             self.start_button.grid(row=1, column=0, pady=(30, 0), sticky="")
-            self.buttons.append(self.start_button)
+            self.widgets.append(self.start_button)
 
             self.options_button = RoundedButton(
                 self.canvas, text="OPTIONS", font=("Poppins Bold", 15, "bold"),
@@ -258,7 +269,7 @@ class Screens:
                 command=self.on_click_options
             )
             self.options_button.grid(row=2, column=0, pady=(20, 0), sticky="")
-            self.buttons.append(self.options_button)
+            self.widgets.append(self.options_button)
 
             self.quit_button = RoundedButton(
                 self.canvas, text="QUIT", font=("Poppins Bold", 15, "bold"),
@@ -270,7 +281,7 @@ class Screens:
                 command=lambda: root.destroy()
             )
             self.quit_button.grid(row=3, column=0, pady=(20, 20), sticky="")
-            self.buttons.append(self.quit_button)
+            self.widgets.append(self.quit_button)
 
             self.finish_init()
 
@@ -286,15 +297,25 @@ class Screens:
         def __init__(self, root: tk.Tk, app: RecollectApp):
             super().__init__(root, app, True)  # Implements all variables and function from base class "BaseScreen"
 
-            self.logo_frame = tk.Frame(self.canvas, background="#53afc8")
-            self.logo_frame.pack(pady=(10, 0), padx=(10, 0), anchor="nw")
+            self.logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0, bg="#53afc8")
+            self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw")
+            self.widgets.append(self.logo_canvas)
 
-            self.logo_image = ImageTk.PhotoImage(Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90)))  # Must be multiple of 1038 x 404
-            self.logo_label = tk.Label(self.logo_frame, borderwidth=0, highlightthickness=0, bg="#53afc8", image=self.logo_image)
+            logo_image = Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90))  # Must be multiple of 935 x 306
+            self.logo_label = tk.Label(self.logo_canvas, borderwidth=0, highlightthickness=0)
+            image_data = {
+                "label": self.logo_label,
+                "raw_image": logo_image,
+                "updated_image": ImageTk.PhotoImage(logo_image)  # Used to save only
+            }
+            self.logo_label.config(image=image_data['updated_image'])
             self.logo_label.pack(anchor="nw", padx=(5, 0), pady=(3, 3), side=tk.LEFT)
+            self.transparent_images.append(image_data)
+            del logo_image
 
-            self.logo_title = tk.Label(self.logo_frame, text="Sign In", font=("Poppins Regular", 15), bg="#53afc8")
+            self.logo_title = tk.Label(self.logo_canvas, text="Sign In", font=("Poppins Regular", 15), bg="#53afc8")
             self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
+            self.widgets.append(self.logo_title)
 
             self.back_button = RoundedButton(
                 self.canvas, text="BACK", font=("Poppins Bold", 15, "bold"),
@@ -306,10 +327,11 @@ class Screens:
                 command=self.on_back
             )
             self.back_button.pack(pady=(5, 0), padx=(10, 0), anchor="nw")
-            self.buttons.append(self.back_button)
+            self.widgets.append(self.back_button)
 
             self.heading = tk.Label(self.canvas, text="Sign In", font=("Poppins Bold", 15, "bold"), bg="#53afc8")
             self.heading.pack(anchor="center", pady=(10, 10))
+            self.widgets.append(self.heading)
 
             self.username_entry = tk.Entry(self.canvas, font=("Poppins Regular", 11), width=25)
             self.username_entry.pack(anchor="center", pady=(5, 5))
@@ -323,8 +345,9 @@ class Screens:
             self.password_entry.bind("<FocusOut>", lambda event: self.on_focusout_entry(self.password_entry, "Password"))
             self.on_focusout_entry(self.password_entry, "Password")
 
-            self.error_message = tk.Label(self.canvas, text="", font=("Poppins Regular", 9), bg="#53afc8", fg="red")
+            self.error_message = tk.Label(self.canvas, text="", font=("Poppins Regular", 9), fg="red", bg="#53afc8")
             self.error_message.pack(anchor="center", pady=(5, 10))
+            self.widgets.append(self.error_message)
 
             self.sign_in_button = RoundedButton(
                 self.canvas, text="SIGN IN", font=("Poppins Bold", 15, "bold"),
@@ -336,7 +359,7 @@ class Screens:
                 command=self.on_sign_in
             )
             self.sign_in_button.pack(anchor="center", pady=(5, 5))
-            self.buttons.append(self.sign_in_button)
+            self.widgets.append(self.sign_in_button)
 
             self.finish_init()
 
@@ -378,10 +401,11 @@ class Screens:
             return True
 
         def on_sign_in(self):
-            self.error_message.config(text="")
+            self.error_message.config(text="", image="")
             self.root.focus()  # Unselects entry boxes
 
             if not self.check_met_criteria():
+                self.update_widgets_background(self.error_message)
                 return
 
             entered_username = self.username_entry.get().strip().lower()
@@ -393,6 +417,7 @@ class Screens:
             elif self.app.encrypt_password(entered_password) != user_data['password']:
                 self.password_entry.config(bg="#f77b7a")
                 self.error_message.config(text="Incorrect password.")
+                self.update_widgets_background(self.error_message)
                 return
 
             # Password is correct / Account created
@@ -420,15 +445,25 @@ class Screens:
         def __init__(self, root: tk.Tk, app: RecollectApp):
             super().__init__(root, app, True)  # Implements all variables and function from base class "BaseScreen"
 
-            self.logo_frame = tk.Frame(self.canvas, background="#53afc8")
-            self.logo_frame.pack(pady=(10, 0), padx=(10, 0), anchor="nw")
+            self.logo_canvas = tk.Canvas(self.canvas, background="#53afc8", borderwidth=0, highlightthickness=0)
+            self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw")
+            self.widgets.append(self.logo_canvas)
 
-            self.logo_image = ImageTk.PhotoImage(Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90)))  # Must be multiple of 1038 x 404
-            self.logo_label = tk.Label(self.logo_frame, borderwidth=0, highlightthickness=0, bg="#53afc8", image=self.logo_image)
+            logo_image = Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90))  # Must be multiple of 935 x 306
+            self.logo_label = tk.Label(self.logo_canvas, borderwidth=0, highlightthickness=0)
+            image_data = {
+                "label": self.logo_label,
+                "raw_image": logo_image,
+                "updated_image": ImageTk.PhotoImage(logo_image)  # Used to save only
+            }
+            self.logo_label.config(image=image_data['updated_image'])
             self.logo_label.pack(anchor="nw", padx=(5, 0), pady=(3, 3), side=tk.LEFT)
+            self.transparent_images.append(image_data)
+            del logo_image
 
-            self.logo_title = tk.Label(self.logo_frame, text="Gamemodes", font=("Poppins Regular", 15), bg="#53afc8")
+            self.logo_title = tk.Label(self.logo_canvas, text="Gamemodes", font=("Poppins Regular", 15), bg="#53afc8")
             self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
+            self.widgets.append(self.logo_title)
 
             self.finish_init()
 
