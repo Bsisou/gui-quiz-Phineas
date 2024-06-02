@@ -107,7 +107,6 @@ class BaseScreen:
         self.has_background = has_background
 
         self.current_background: Image = None
-        self._background_image_tk: (ImageTk.PhotoImage | None) = None  # Only works when it is inside the class scope not local scope
         self._blobs_tk: list = []  # Only works when it is inside the class scope not local scope
 
         self.canvas = tk.Canvas(self.root, borderwidth=0, highlightthickness=0)
@@ -122,7 +121,6 @@ class BaseScreen:
 
         self.transparent_images = []
         self.widgets = []
-        self.widget_backgrounds = []  # Only works when it is inside the class scope not local scope
 
         print("Created screen with memory usage:")
         get_memory()
@@ -148,10 +146,10 @@ class BaseScreen:
         self.canvas.delete("background")
         # Adjust background stretching etc.
         width, height = self.root.winfo_width(), self.root.winfo_height()
-        del self.current_background, self._background_image_tk
+        del self.current_background
         self.current_background = self.app.get_background().resize((width, height), 1)
-        self._background_image_tk = ImageTk.PhotoImage(self.current_background)  # Must be in class scope
-        self.canvas.create_image(0, 0, image=self._background_image_tk, anchor="nw", tags="background")  # Don't make one-liner
+        self.canvas.bg_image = ImageTk.PhotoImage(self.current_background)  # Must be in class scope
+        self.canvas.create_image(0, 0, image=self.canvas.bg_image, anchor="nw", tags="background")  # Don't make one-liner
 
     def place_blob(self, size: int, angle: int | float, x: int | float, y: int | float, anchor):
         blob_tk = self.app.get_blob(size, size, angle)
@@ -197,10 +195,6 @@ class BaseScreen:
         if self.has_background is False or self.current_background is None:  # No background or current background not showing
             return
 
-        # Clears previous bottom backgrounds from memory
-        del self.widget_backgrounds
-        self.widget_backgrounds = []
-
         # Adjust each button background
         self.canvas.update_idletasks()  # Updates coordinates
 
@@ -211,15 +205,16 @@ class BaseScreen:
             # print(f"button bbox: {x1} {y1}, {x2} {y2}")
 
             background_at_bbox = self.current_background.crop((x1, y1, x2, y2))
-            self.widget_backgrounds.append(ImageTk.PhotoImage(background_at_bbox))  # Image needs to be saved to be applied
+
+            widget.bg_image = ImageTk.PhotoImage(background_at_bbox)
 
             print(widget.__class__.__name__)
             if widget.__class__.__name__ in ["RoundedButton", "Canvas"]:
                 print("Updated with .create_image")
-                widget.create_image(0, 0, image=self.widget_backgrounds[-1], anchor="nw")
+                widget.create_image(0, 0, image=widget.bg_image, anchor="nw")
             elif widget.__class__.__name__ == "Label":
                 print("Updated with label.config")
-                widget.config(image=self.widget_backgrounds[-1], compound="center", bd=0, borderwidth=0, highlightthickness=0, relief="flat", padx=0, pady=0)
+                widget.config(image=widget.bg_image, compound="center", bd=0, borderwidth=0, highlightthickness=0, relief="flat", padx=0, pady=0)
 
             if widget.__class__.__name__ == "RoundedButton":
                 print("Regened")
@@ -405,7 +400,7 @@ class Screens:
             self.root.focus()  # Unselects entry boxes
 
             if not self.check_met_criteria():
-                self.update_widgets_background(self.error_message)
+                self.update_widgets_background(specific_widget=self.error_message)
                 return
 
             entered_username = self.username_entry.get().strip().lower()
@@ -417,7 +412,7 @@ class Screens:
             elif self.app.encrypt_password(entered_password) != user_data['password']:
                 self.password_entry.config(bg="#f77b7a")
                 self.error_message.config(text="Incorrect password.")
-                self.update_widgets_background(self.error_message)
+                self.update_widgets_background(specific_widget=self.error_message)
                 return
 
             # Password is correct / Account created
