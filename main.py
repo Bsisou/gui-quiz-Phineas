@@ -101,19 +101,21 @@ class RecollectApp:
 
 
 class BaseScreen:
-    def __init__(self, root: tk.Tk, app: RecollectApp, has_background: bool = True):
+    def __init__(self, root: tk.Tk, app: RecollectApp, has_background: bool = True, has_blobs: bool = True):
         self.root = root
         self.app = app
         self.has_background = has_background
+        self.has_blobs = has_blobs
 
         self.current_background: Image = None
         self._blobs_tk: list = []  # Only works when it is inside the class scope not local scope
 
         self.canvas = tk.Canvas(self.root, borderwidth=0, highlightthickness=0)
 
+        root.update_idletasks()  # Updates root background size
         if self.has_background:
-            root.update_idletasks()  # Updates root background size
             self.update_background()
+        if self.has_blobs:
             self.update_blobs()
 
         # self.canvas.pack(side="top", fill=tk.BOTH, expand=True)  # can be removed? (pack first so coordinates work)
@@ -126,15 +128,17 @@ class BaseScreen:
         get_memory()
 
     def finish_init(self):
+        self.canvas.update_idletasks()  # Updates canvas coordinates size
+
         if self.has_background:
-            self.canvas.update_idletasks()  # Updates canvas coordinates size
             self.update_transparent_images()
             self.update_widgets_background()
 
             self.canvas.bind("<Configure>", self.update_background, add="+")
-            self.canvas.bind("<Configure>", self.update_blobs, add="+")
             self.canvas.bind("<Configure>", self.update_transparent_images, add="+")
             self.canvas.bind("<Configure>", self.update_widgets_background, add="+")
+        if self.has_blobs:
+            self.canvas.bind("<Configure>", self.update_blobs, add="+")
 
         print("Finished creating screen with memory usage:")
         get_memory()
@@ -228,7 +232,7 @@ class BaseScreen:
 class Screens:
     class Homepage(BaseScreen):
         def __init__(self, root: tk.Tk, app: RecollectApp):
-            super().__init__(root, app, True)  # Implements all variables and function from base class "BaseScreen"
+            super().__init__(root, app, True, True)  # Implements all variables and function from base class "BaseScreen"
 
             logo_image = Image.open("assets/logo.png").convert("RGBA").resize((370, 121))  # Must be multiple of 935 x 306
             self.logo_label = tk.Label(self.canvas, borderwidth=0, highlightthickness=0)
@@ -282,7 +286,11 @@ class Screens:
 
         def on_click_start(self):
             self.destroy()
-            self.app.show_screen(Screens.Login(self.root, self.app).get())
+            if self.app.username is None or self.app.get_user_data(self.app.username) is None:  # Not logged in or username not in data for some reason
+                self.app.username = None
+                self.app.show_screen(Screens.Login(self.root, self.app).get())
+            else:
+                self.app.show_screen(Screens.GameSelection(self.root, self.app).get())
 
         def on_click_options(self):
             ...
@@ -290,7 +298,7 @@ class Screens:
 
     class Login(BaseScreen):
         def __init__(self, root: tk.Tk, app: RecollectApp):
-            super().__init__(root, app, True)  # Implements all variables and function from base class "BaseScreen"
+            super().__init__(root, app, True, True)  # Implements all variables and function from base class "BaseScreen"
 
             self.logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0, bg="#53afc8")
             self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw")
@@ -438,10 +446,10 @@ class Screens:
 
     class GameSelection(BaseScreen):
         def __init__(self, root: tk.Tk, app: RecollectApp):
-            super().__init__(root, app, True)  # Implements all variables and function from base class "BaseScreen"
+            super().__init__(root, app, True, False)  # Implements all variables and function from base class "BaseScreen"
 
             self.logo_canvas = tk.Canvas(self.canvas, background="#53afc8", borderwidth=0, highlightthickness=0)
-            self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw")
+            self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw", fill="x")
             self.widgets.append(self.logo_canvas)
 
             logo_image = Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90))  # Must be multiple of 935 x 306
@@ -460,13 +468,40 @@ class Screens:
             self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
             self.widgets.append(self.logo_title)
 
+            self.settings_button = RoundedButton(
+                self.logo_canvas, font=("", 0, ""),
+                width=50, height=50, radius=0, text_padding=0,
+                image=ImageTk.PhotoImage(Image.open("assets/icons/settings.png").convert("RGBA").resize((35, 35))),
+                button_background="#5F7BF8", button_foreground="#000000",
+                button_hover_background="#4b61c4", button_hover_foreground="#000000",
+                button_press_background="#2d3b77", button_press_foreground="#000000",
+                outline_colour="black", outline_width=1,
+                command=self.on_settings_click
+            )
+            self.settings_button.pack(anchor="ne", pady=(0, 0), side=tk.RIGHT)
+            self.widgets.append(self.settings_button)
+
+            self.game_button = RoundedButton(
+                self.canvas, font=("", 0, ""),
+                width=350, height=150, radius=29, text_padding=0,
+                button_background="#5F7BF8", button_foreground="#000000",
+                button_hover_background="#4b61c4", button_hover_foreground="#000000",
+                button_press_background="#2d3b77", button_press_foreground="#000000",
+                outline_colour="black", outline_width=1,
+                command=self.on_settings_click
+            )
+
             self.finish_init()
+
+        def on_settings_click(self):
+            ...
 
 
 class RoundedButton(tk.Canvas):
     # Adapted from https://stackoverflow.com/a/69092113
     def __init__(self, parent=None, text: str = "", font: tuple = ("Times", 30, "bold"),
                  text_padding: int = 5, radius: int = 25,
+                 image: ImageTk = None,
                  button_background="#ffffff", button_foreground="#000000",
                  button_hover_background="#ffffff", button_hover_foreground="#000000",
                  button_press_background="#ffffff", button_press_foreground="#000000",
@@ -478,6 +513,7 @@ class RoundedButton(tk.Canvas):
         self.font = font
         self.text_padding = text_padding
         self.radius = radius
+        self.image = image
         self.button_background = button_background
         self.button_foreground = button_foreground
         self.button_hover_background = button_hover_background
@@ -492,6 +528,7 @@ class RoundedButton(tk.Canvas):
 
         self.button_obj: int | None = None
         self.text_obj: int | None = None
+        self.image_obj: int | None = None
         self.generate_button()
 
         # Binds apply to both button and text
@@ -535,6 +572,8 @@ class RoundedButton(tk.Canvas):
             outline=self.outline_colour, width=self.outline_width
         )
         self.text_obj = self.create_text(0, 0, text=self.text, tags="button", fill=self.button_foreground, font=self.font, justify="center")
+        if self.image is not None:
+            self.image_obj = self.create_image(self.winfo_width() / 2, self.winfo_height() / 2, image=self.image, tags="button")
 
         text_rect = self.bbox(self.text_obj)
         if int(self["width"]) < text_rect[2] - text_rect[0]:
