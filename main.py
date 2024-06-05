@@ -5,7 +5,7 @@ import tkinter.font as tk_font
 import hashlib
 import psutil  # for memory usage only - pip install psutil
 import pyglet  # pip install pyglet
-from PIL import Image, ImageTk  # pip install pillow
+from PIL import Image, ImageTk, ImageDraw  # pip install pillow
 
 
 def get_memory():
@@ -98,6 +98,21 @@ class RecollectApp:
             del self.current_screen
         screen.pack(side="top", fill=tk.BOTH, expand=True)
         self.current_screen = screen
+
+    @staticmethod
+    def add_corners(image, radius):
+        # Adapted from https://stackoverflow.com/a/78202642
+        circle = Image.new("L", (radius * 2, radius * 2), 0)
+        draw = ImageDraw.Draw(circle)
+        draw.ellipse((0, 0, radius * 2 - 1, radius * 2 - 1), fill=255)
+        alpha = Image.new("L", image.size, 255)
+        w, h = image.size
+        alpha.paste(circle.crop((0, 0, radius, radius)), (0, 0))
+        alpha.paste(circle.crop((0, radius, radius, radius * 2)), (0, h - radius))
+        alpha.paste(circle.crop((radius, 0, radius * 2, radius)), (w - radius, 0))
+        alpha.paste(circle.crop((radius, radius, radius * 2, radius * 2)), (w - radius, h - radius))
+        image.putalpha(alpha)
+        return image
 
 
 class BaseScreen:
@@ -206,22 +221,16 @@ class BaseScreen:
         for widget in update_widgets:
             x1, y1 = widget.winfo_x(), widget.winfo_y()
             x2, y2 = x1 + widget.winfo_width(), y1 + widget.winfo_height()
-            # print(f"button bbox: {x1} {y1}, {x2} {y2}")
 
             background_at_bbox = self.current_background.crop((x1, y1, x2, y2))
 
             widget.bg_image = ImageTk.PhotoImage(background_at_bbox)
 
-            print(widget.__class__.__name__)
             if widget.__class__.__name__ in ["RoundedButton", "Canvas"]:
-                print("Updated with .create_image")
                 widget.create_image(0, 0, image=widget.bg_image, anchor="nw")
             elif widget.__class__.__name__ == "Label":
-                print("Updated with label.config")
-                widget.config(image=widget.bg_image, compound="center", bd=0, borderwidth=0, highlightthickness=0, relief="flat", padx=0, pady=0)
-
+                widget.config(image=widget.bg_image, compound=tk.CENTER, bd=0, borderwidth=0, highlightthickness=0, relief="flat", padx=0, pady=0)
             if widget.__class__.__name__ == "RoundedButton":
-                print("Regened")
                 widget.generate_button()  # Remakes polygon and text
 
     def destroy(self):
@@ -333,23 +342,23 @@ class Screens:
             self.widgets.append(self.back_button)
 
             self.heading = tk.Label(self.canvas, text="Sign In", font=("Poppins Bold", 15, "bold"), bg="#53afc8")
-            self.heading.pack(anchor="center", pady=(10, 10))
+            self.heading.pack(anchor=tk.CENTER, pady=(10, 10))
             self.widgets.append(self.heading)
 
             self.username_entry = tk.Entry(self.canvas, font=("Poppins Regular", 11), width=25)
-            self.username_entry.pack(anchor="center", pady=(5, 5))
+            self.username_entry.pack(anchor=tk.CENTER, pady=(5, 5))
             self.username_entry.bind("<FocusIn>", lambda event: self.on_focusin_entry(self.username_entry, "Username"))
             self.username_entry.bind("<FocusOut>", lambda event: self.on_focusout_entry(self.username_entry, "Username"))
             self.on_focusout_entry(self.username_entry, "Username")
 
             self.password_entry = tk.Entry(self.canvas, font=("Poppins Regular", 11), width=25)
-            self.password_entry.pack(anchor="center", pady=(5, 5))
+            self.password_entry.pack(anchor=tk.CENTER, pady=(5, 5))
             self.password_entry.bind("<FocusIn>", lambda event: self.on_focusin_entry(self.password_entry, "Password"))
             self.password_entry.bind("<FocusOut>", lambda event: self.on_focusout_entry(self.password_entry, "Password"))
             self.on_focusout_entry(self.password_entry, "Password")
 
             self.error_message = tk.Label(self.canvas, text="", font=("Poppins Regular", 9), fg="red", bg="#53afc8")
-            self.error_message.pack(anchor="center", pady=(5, 10))
+            self.error_message.pack(anchor=tk.CENTER, pady=(5, 10))
             self.widgets.append(self.error_message)
 
             self.sign_in_button = RoundedButton(
@@ -361,7 +370,7 @@ class Screens:
                 outline_colour="black", outline_width=1,
                 command=self.on_sign_in
             )
-            self.sign_in_button.pack(anchor="center", pady=(5, 5))
+            self.sign_in_button.pack(anchor=tk.CENTER, pady=(5, 5))
             self.widgets.append(self.sign_in_button)
 
             self.finish_init()
@@ -481,20 +490,88 @@ class Screens:
             self.settings_button.pack(anchor="ne", pady=(0, 0), side=tk.RIGHT)
             self.widgets.append(self.settings_button)
 
+            self.outer_frame = tk.Frame(self.canvas, bd=0, borderwidth=0, highlightthickness=0, bg="#53b0c8")
+            self.outer_frame.pack(fill=tk.BOTH, expand=True)
+
+            self.inner_canvas = tk.Canvas(self.outer_frame, bg="#53b0c8", bd=0, borderwidth=0, highlightthickness=0)
+            self.inner_canvas.pack(anchor=tk.CENTER, side=tk.LEFT, fill=tk.Y, expand=True)
+
+            self.scrollbar = tk.Scrollbar(self.outer_frame, orient=tk.VERTICAL, command=self.inner_canvas.yview)
+            self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+            self.inner_canvas.configure(yscrollcommand=self.scrollbar.set)
+            self.root.update()
+            self.inner_canvas.bind("<Configure>", lambda e: self.inner_canvas.configure(scrollregion=self.inner_canvas.bbox("all")))
+
+            self.game_button_canvas = tk.Canvas(self.inner_canvas, bg="#53b0c8", bd=0, borderwidth=0, highlightthickness=0)
+
             self.game_button = RoundedButton(
-                self.canvas, font=("", 0, ""),
-                width=350, height=150, radius=29, text_padding=0,
-                button_background="#5F7BF8", button_foreground="#000000",
+                self.game_button_canvas, font=("", 0, ""),
+                width=600, height=150, radius=29, text_padding=0,
+                bg="#53b0c8",
+                button_background="#617eff", button_foreground="#000000",
                 button_hover_background="#4b61c4", button_hover_foreground="#000000",
                 button_press_background="#2d3b77", button_press_foreground="#000000",
                 outline_colour="black", outline_width=1,
                 command=self.on_settings_click
             )
+            self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background())
+            self.game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
+            self.game_button.on_regen()
+
+            self.game_button = RoundedButton(
+                self.game_button_canvas, font=("", 0, ""),
+                width=600, height=150, radius=29, text_padding=0,
+                bg="#53b0c8",
+                button_background="#617eff", button_foreground="#000000",
+                button_hover_background="#4b61c4", button_hover_foreground="#000000",
+                button_press_background="#2d3b77", button_press_foreground="#000000",
+                outline_colour="black", outline_width=1,
+                command=self.on_settings_click
+            )
+            self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background())
+            self.game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
+            self.game_button.on_regen()
+
+            self.game_button = RoundedButton(
+                self.game_button_canvas, font=("", 0, ""),
+                width=600, height=150, radius=29, text_padding=0,
+                bg="#53b0c8",
+                button_background="#617eff", button_foreground="#000000",
+                button_hover_background="#4b61c4", button_hover_foreground="#000000",
+                button_press_background="#2d3b77", button_press_foreground="#000000",
+                outline_colour="black", outline_width=1,
+                command=self.on_settings_click
+            )
+            self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background())
+            self.game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
+            self.game_button.on_regen()
+
+            self.game_button_window = self.inner_canvas.create_window((0, 0), window=self.game_button_canvas, anchor="nw")
+
+            self.inner_canvas.bind("<MouseWheel>", self.on_mouse_wheel)
+            self.game_button_canvas.bind("<MouseWheel>", self.on_mouse_wheel)
+            for child in self.game_button_canvas.children.values():
+                child.bind("<MouseWheel>", self.on_mouse_wheel)
+
+            # Fixes game button canvas getting cut off
+            self.root.update()
+            x1, y1, x2, y2 = self.inner_canvas.bbox("all")
+            self.inner_canvas.config(width=x2 - x1, height=y2 - y1)
 
             self.finish_init()
 
+        def after_game_button(self, button, image: Image):
+            button.game_image = ImageTk.PhotoImage(self.app.add_corners(image.convert("RGBA").resize((130, 130)), 9))
+            button.create_image(10, 10, image=button.game_image, anchor="nw", tag="button")
+            button.create_text(150, 20, text="Game Name", fill="black", font=("Poppins Bold", 15, "bold"), anchor="nw", tag="button")
+            button.create_text(150, 60, text="Description", fill="black", font=("Poppins Regular", 12), anchor="nw", tag="button")
+
+        def on_mouse_wheel(self, event):
+            self.inner_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
         def on_settings_click(self):
-            ...
+            print("Pressed settings button")
 
 
 class RoundedButton(tk.Canvas):
@@ -506,7 +583,8 @@ class RoundedButton(tk.Canvas):
                  button_hover_background="#ffffff", button_hover_foreground="#000000",
                  button_press_background="#ffffff", button_press_foreground="#000000",
                  outline_colour: str = "", outline_width: int = 1,
-                 command=None, *args, **kwargs):
+                 command=None, on_regen=None,
+                 *args, **kwargs):
         super(RoundedButton, self).__init__(parent, bd=0, highlightthickness=0, *args, **kwargs)
         self.config(bg=self.master["background"])
         self.text = text
@@ -523,6 +601,7 @@ class RoundedButton(tk.Canvas):
         self.outline_colour = outline_colour
         self.outline_width = outline_width
         self.command = command
+        self.on_regen = on_regen
 
         self.hovering_button = False
 
@@ -531,11 +610,14 @@ class RoundedButton(tk.Canvas):
         self.image_obj: int | None = None
         self.generate_button()
 
+        self.game_image = None
+
         # Binds apply to both button and text
         self.tag_bind("button", "<ButtonPress>", self.on_event)
         self.tag_bind("button", "<ButtonRelease>", self.on_event)
         self.tag_bind("button", "<Enter>", self.on_event)
         self.tag_bind("button", "<Leave>", self.on_event)
+
         self.bind("<Configure>", self.resize)
 
     def round_rectangle(self, x1, y1, x2, y2, radius=25, update=False, **kwargs):  # if update is False a new rounded rectangle's id will be returned else updates existing rounded rect.
@@ -571,7 +653,7 @@ class RoundedButton(tk.Canvas):
             radius=self.radius, fill=self.button_background,
             outline=self.outline_colour, width=self.outline_width
         )
-        self.text_obj = self.create_text(0, 0, text=self.text, tags="button", fill=self.button_foreground, font=self.font, justify="center")
+        self.text_obj = self.create_text(0, 0, text=self.text, tags="button", fill=self.button_foreground, font=self.font, justify=tk.CENTER)
         if self.image is not None:
             self.image_obj = self.create_image(self.winfo_width() / 2, self.winfo_height() / 2, image=self.image, tags="button")
 
@@ -582,8 +664,10 @@ class RoundedButton(tk.Canvas):
             self["height"] = (text_rect[3] - text_rect[1]) + 10
         self.resize()
 
+        if self.on_regen is not None:
+            self.on_regen()
+
     def resize(self, _=None):
-        # print("resizing")
         text_bbox = self.bbox(self.text_obj)
         width = max(self.winfo_width(), text_bbox[2] - text_bbox[0] + self.text_padding) - 1  # -1 pixel size so border is not cut off
         height = max(self.winfo_height(), text_bbox[3] - text_bbox[1] + self.text_padding) - 1  # -1 pixel size so border is not cut off
