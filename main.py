@@ -101,8 +101,8 @@ class RecollectApp:
 
     def show_overlaying_screen(self, overlaying_screen: tk.Canvas):
         # overlaying_screen.place(x=0, y=0, anchor="nw")
-        overlaying_screen.pack(side="top", fill=tk.BOTH, expand=True)
         self.current_screen.pack_forget()
+        overlaying_screen.pack(side="top", fill=tk.BOTH, expand=True)
 
     def finish_overlaying_screen(self, overlaying_screen: tk.Canvas):
         overlaying_screen.destroy()
@@ -292,8 +292,8 @@ class Screens:
                 self.canvas, text="QUIT", font=("Poppins Bold", 15, "bold"),
                 width=300, height=50, radius=29, text_padding=0,
                 button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
+                button_hover_background="#b14747", button_hover_foreground="#000000",
+                button_press_background="#fe6666", button_press_foreground="#000000",
                 outline_colour="black", outline_width=1,
                 command=lambda: root.destroy()
             )
@@ -311,8 +311,7 @@ class Screens:
                 self.app.show_screen(Screens.GameSelection(self.root, self.app).get())
 
         def on_click_options(self):
-            ...
-            # self.destroy()
+            self.app.show_overlaying_screen(Screens.SettingsMenu(self.root, self.app).get())
 
     class Login(BaseScreen):
         def __init__(self, root: tk.Tk, app: RecollectApp):
@@ -496,7 +495,7 @@ class Screens:
                 outline_colour="black", outline_width=1,
                 command=self.on_settings_click
             )
-            self.settings_button.pack(anchor="ne", pady=(0, 0), side=tk.RIGHT)
+            self.settings_button.pack(anchor="ne", pady=(15, 0), side=tk.RIGHT)
             self.widgets.append(self.settings_button)
 
             self.outer_frame = tk.Frame(self.canvas, bd=0, borderwidth=0, highlightthickness=0, bg="#53b0c8")
@@ -587,8 +586,8 @@ class Screens:
         def __init__(self, root: tk.Tk, app: RecollectApp):
             super().__init__(root, app, True, True)  # Implements all variables and function from base class "BaseScreen"
 
-            self.logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0, bg="#53afc8")
-            self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw")
+            self.logo_canvas = tk.Canvas(self.canvas, background="#53afc8", borderwidth=0, highlightthickness=0)
+            self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw", fill="x")
             self.widgets.append(self.logo_canvas)
 
             logo_image = Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90))  # Must be multiple of 935 x 306
@@ -606,6 +605,18 @@ class Screens:
             self.logo_title = tk.Label(self.logo_canvas, text="Options Menu", font=("Poppins Regular", 15), bg="#53afc8")
             self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
             self.widgets.append(self.logo_title)
+
+            self.sign_out_button = RoundedButton(
+                self.logo_canvas, text="SIGN OUT", font=("Poppins Bold", 15, "bold"),
+                width=210, height=50, radius=29, text_padding=0,
+                button_background="#5F7BF8", button_foreground="#000000",
+                button_hover_background="#b14747", button_hover_foreground="#000000",
+                button_press_background="#fe6666", button_press_foreground="#000000",
+                outline_colour="black", outline_width=1,
+                command=self.on_sign_out
+            )
+            self.sign_out_button.pack(anchor="ne", pady=(15, 0), side=tk.RIGHT)
+            self.widgets.append(self.sign_out_button)
 
             self.heading = tk.Label(self.canvas, text="Sound Settings", font=("Poppins Bold", 15, "bold"), bg="#53afc8")
             self.heading.pack(anchor=tk.CENTER, pady=(0, 0))
@@ -679,6 +690,12 @@ class Screens:
 
         def on_leave_options(self):
             self.app.finish_overlaying_screen(self.get())
+            del self
+
+        def on_sign_out(self):
+            self.app.username = None
+            self.app.finish_overlaying_screen(self.get())
+            self.app.show_screen(Screens.Homepage(self.root, self.app).get())
             del self
 
 
