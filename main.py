@@ -91,7 +91,7 @@ class RecollectApp:
             data_file.truncate()
             json.dump(data, data_file, indent=2)
 
-    def show_screen(self, screen):
+    def show_screen(self, screen: tk.Canvas):
         if self.current_screen is not None:
             self.current_screen.pack_forget()
             self.current_screen.destroy()
@@ -99,8 +99,17 @@ class RecollectApp:
         screen.pack(side="top", fill=tk.BOTH, expand=True)
         self.current_screen = screen
 
+    def show_overlaying_screen(self, overlaying_screen: tk.Canvas):
+        # overlaying_screen.place(x=0, y=0, anchor="nw")
+        overlaying_screen.pack(side="top", fill=tk.BOTH, expand=True)
+        self.current_screen.pack_forget()
+
+    def finish_overlaying_screen(self, overlaying_screen: tk.Canvas):
+        overlaying_screen.destroy()
+        self.current_screen.pack(side="top", fill=tk.BOTH, expand=True)
+
     @staticmethod
-    def add_corners(image, radius):
+    def add_corners(image: Image, radius: int):
         # Adapted from https://stackoverflow.com/a/78202642
         circle = Image.new("L", (radius * 2, radius * 2), 0)
         draw = ImageDraw.Draw(circle)
@@ -513,7 +522,7 @@ class Screens:
                 button_hover_background="#4b61c4", button_hover_foreground="#000000",
                 button_press_background="#2d3b77", button_press_foreground="#000000",
                 outline_colour="black", outline_width=1,
-                command=self.on_settings_click
+                command=None
             )
             self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background())
             self.game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
@@ -527,7 +536,7 @@ class Screens:
                 button_hover_background="#4b61c4", button_hover_foreground="#000000",
                 button_press_background="#2d3b77", button_press_foreground="#000000",
                 outline_colour="black", outline_width=1,
-                command=self.on_settings_click
+                command=None
             )
             self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background())
             self.game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
@@ -541,7 +550,7 @@ class Screens:
                 button_hover_background="#4b61c4", button_hover_foreground="#000000",
                 button_press_background="#2d3b77", button_press_foreground="#000000",
                 outline_colour="black", outline_width=1,
-                command=self.on_settings_click
+                command=None
             )
             self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background())
             self.game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
@@ -572,6 +581,105 @@ class Screens:
 
         def on_settings_click(self):
             print("Pressed settings button")
+            self.app.show_overlaying_screen(Screens.SettingsMenu(self.root, self.app).get())
+
+    class SettingsMenu(BaseScreen):
+        def __init__(self, root: tk.Tk, app: RecollectApp):
+            super().__init__(root, app, True, True)  # Implements all variables and function from base class "BaseScreen"
+
+            self.logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0, bg="#53afc8")
+            self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw")
+            self.widgets.append(self.logo_canvas)
+
+            logo_image = Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90))  # Must be multiple of 935 x 306
+            self.logo_label = tk.Label(self.logo_canvas, borderwidth=0, highlightthickness=0)
+            image_data = {
+                "label": self.logo_label,
+                "raw_image": logo_image,
+                "updated_image": ImageTk.PhotoImage(logo_image)  # Used to save only
+            }
+            self.logo_label.config(image=image_data['updated_image'])
+            self.logo_label.pack(anchor="nw", padx=(5, 0), pady=(3, 3), side=tk.LEFT)
+            self.transparent_images.append(image_data)
+            del logo_image
+
+            self.logo_title = tk.Label(self.logo_canvas, text="Options Menu", font=("Poppins Regular", 15), bg="#53afc8")
+            self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
+            self.widgets.append(self.logo_title)
+
+            self.heading = tk.Label(self.canvas, text="Sound Settings", font=("Poppins Bold", 15, "bold"), bg="#53afc8")
+            self.heading.pack(anchor=tk.CENTER, pady=(0, 0))
+            self.widgets.append(self.heading)
+
+            self.mute_button = RoundedButton(
+                self.canvas, text="MUTE", font=("Poppins Bold", 15, "bold"),
+                width=300, height=50, radius=29, text_padding=0,
+                button_background="#5F7BF8", button_foreground="#000000",
+                button_hover_background="#4b61c4", button_hover_foreground="#000000",
+                button_press_background="#2d3b77", button_press_foreground="#000000",
+                outline_colour="black", outline_width=1,
+                command=None
+            )
+            self.mute_button.pack(anchor=tk.CENTER, pady=(0, 0))
+            self.widgets.append(self.mute_button)
+
+            self.volume_button = RoundedButton(
+                self.canvas, text="VOLUME: 50%", font=("Poppins Bold", 10, "bold"),
+                width=300, height=50, radius=29, text_padding=0,
+                button_background="#5F7BF8", button_foreground="#000000",
+                button_hover_background="#4b61c4", button_hover_foreground="#000000",
+                button_press_background="#2d3b77", button_press_foreground="#000000",
+                outline_colour="black", outline_width=1,
+                command=None
+            )
+            self.volume_button.pack(anchor=tk.CENTER, pady=(5, 0))
+            self.widgets.append(self.volume_button)
+
+            self.hidden_songs_button = RoundedButton(
+                self.canvas, text="View Hidden Songs", font=("Poppins Bold", 10, "bold"),
+                width=300, height=50, radius=29, text_padding=0,
+                button_background="#5F7BF8", button_foreground="#000000",
+                button_hover_background="#4b61c4", button_hover_foreground="#000000",
+                button_press_background="#2d3b77", button_press_foreground="#000000",
+                outline_colour="black", outline_width=1,
+                command=None
+            )
+            self.hidden_songs_button.pack(anchor=tk.CENTER, pady=(5, 0))
+            self.widgets.append(self.hidden_songs_button)
+
+            self.heading = tk.Label(self.canvas, text="Appearance", font=("Poppins Bold", 15, "bold"), bg="#53afc8")
+            self.heading.pack(anchor=tk.CENTER, pady=(15, 0))
+            self.widgets.append(self.heading)
+
+            self.theme_button = RoundedButton(
+                self.canvas, text="THEME: Default", font=("Poppins Bold", 15, "bold"),
+                width=300, height=50, radius=29, text_padding=0,
+                button_background="#5F7BF8", button_foreground="#000000",
+                button_hover_background="#4b61c4", button_hover_foreground="#000000",
+                button_press_background="#2d3b77", button_press_foreground="#000000",
+                outline_colour="black", outline_width=1,
+                command=None
+            )
+            self.theme_button.pack(anchor=tk.CENTER, pady=(0, 0))
+            self.widgets.append(self.theme_button)
+
+            self.leave_button = RoundedButton(
+                self.canvas, text="LEAVE AND APPLY", font=("Poppins Bold", 15, "bold"),
+                width=300, height=50, radius=29, text_padding=0,
+                button_background="#5F7BF8", button_foreground="#000000",
+                button_hover_background="#4b61c4", button_hover_foreground="#000000",
+                button_press_background="#2d3b77", button_press_foreground="#000000",
+                outline_colour="black", outline_width=1,
+                command=self.on_leave_options
+            )
+            self.leave_button.pack(anchor=tk.CENTER, pady=(30, 0))
+            self.widgets.append(self.leave_button)
+
+            self.finish_init()
+
+        def on_leave_options(self):
+            self.app.finish_overlaying_screen(self.get())
+            del self
 
 
 class RoundedButton(tk.Canvas):
