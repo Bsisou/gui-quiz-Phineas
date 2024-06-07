@@ -22,16 +22,42 @@ class RecollectApp:
 
         self.data_file = "data.json"
 
-        # Overriding default font if custom font does not work
-        self.defaultFont = tk_font.nametofont("TkDefaultFont")
-        self.defaultFont.configure(family="Calibri")
-
-        self.background_image_full = Image.open("assets/background.png")
-
-        self.blob = Image.open("assets/blob.png")
+        self.themes = {
+            "Fruity (Default)": {
+                "img_bg": "background.png",
+                "img_blob": "blob.png",
+                "accent": "#53B0C8",
+                "text": "black",
+                "outline": "black",
+                "btn_bg": "#5F7BF8",
+                "btn_hvr": "#4B61C4",
+                "btn_prs": "#2D3B77",
+                "btn_warn_hvr": "#B14747",
+                "btn_warn_prs": "#FE6666",
+            },
+            "Piercing Crimson": {
+                "img_bg": "background_crimson.png",
+                "img_blob": "blob_crimson.png",
+                "accent": "#C85053",
+                "text": "black",
+                "outline": "black",
+                "btn_bg": "#F85F7B",
+                "btn_hvr": "#C44B61",
+                "btn_prs": "#772D3B",
+                "btn_warn_hvr": "#400c13",
+                "btn_warn_prs": "#8d1c2a",
+            }
+        }
 
         self.volume = tk.IntVar(value=50)
         self.last_volume = 50
+
+        self.theme = list(self.themes.keys())[0]
+        self.theme_data = self.themes[self.theme]
+
+        # Overriding default font if custom font does not work
+        self.defaultFont = tk_font.nametofont("TkDefaultFont")
+        self.defaultFont.configure(family="Calibri")
 
         self.current_screen = None
         self.show_screen(Screens.Homepage(self.root, self).get())
@@ -39,10 +65,10 @@ class RecollectApp:
         self.root.mainloop()
 
     def get_background(self) -> Image:
-        return self.background_image_full
+        return Image.open(f"assets/{self.theme_data['img_bg']}")
 
     def get_blob(self, width, height, angle) -> (ImageTk.PhotoImage, Image):
-        blob = self.blob.rotate(angle, Image.NEAREST, expand=True).resize((width, height), 1)
+        blob = Image.open(f"assets/{self.theme_data['img_blob']}").rotate(angle, Image.NEAREST, expand=True).resize((width, height), 1)
         return ImageTk.PhotoImage(blob)
 
     @staticmethod
@@ -270,10 +296,10 @@ class Screens:
             self.start_button = RoundedButton(
                 self.canvas, text="START", font=("Poppins Bold", 20, "bold"),
                 width=350, height=75, radius=29, text_padding=0,
-                button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=self.on_click_start
             )
             self.start_button.grid(row=1, column=0, pady=(30, 0), sticky="")
@@ -282,10 +308,10 @@ class Screens:
             self.options_button = RoundedButton(
                 self.canvas, text="OPTIONS", font=("Poppins Bold", 15, "bold"),
                 width=300, height=50, radius=29, text_padding=0,
-                button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=self.on_click_options
             )
             self.options_button.grid(row=2, column=0, pady=(20, 0), sticky="")
@@ -294,10 +320,10 @@ class Screens:
             self.quit_button = RoundedButton(
                 self.canvas, text="QUIT", font=("Poppins Bold", 15, "bold"),
                 width=300, height=50, radius=29, text_padding=0,
-                button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#b14747", button_hover_foreground="#000000",
-                button_press_background="#fe6666", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_warn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_warn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=lambda: root.destroy()
             )
             self.quit_button.grid(row=3, column=0, pady=(20, 20), sticky="")
@@ -320,7 +346,7 @@ class Screens:
         def __init__(self, root: tk.Tk, app: RecollectApp):
             super().__init__(root, app, True, True)  # Implements all variables and function from base class "BaseScreen"
 
-            self.logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0, bg="#53afc8")
+            self.logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
             self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw")
             self.widgets.append(self.logo_canvas)
 
@@ -336,23 +362,23 @@ class Screens:
             self.transparent_images.append(image_data)
             del logo_image
 
-            self.logo_title = tk.Label(self.logo_canvas, text="Sign In", font=("Poppins Regular", 15), bg="#53afc8")
+            self.logo_title = tk.Label(self.logo_canvas, text="Sign In", font=("Poppins Regular", 15))
             self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
             self.widgets.append(self.logo_title)
 
             self.back_button = RoundedButton(
                 self.canvas, text="BACK", font=("Poppins Bold", 15, "bold"),
                 width=210, height=50, radius=29, text_padding=0,
-                button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=self.on_back
             )
             self.back_button.pack(pady=(5, 0), padx=(10, 0), anchor="nw")
             self.widgets.append(self.back_button)
 
-            self.heading = tk.Label(self.canvas, text="Sign In", font=("Poppins Bold", 15, "bold"), bg="#53afc8")
+            self.heading = tk.Label(self.canvas, text="Sign In", font=("Poppins Bold", 15, "bold"))
             self.heading.pack(anchor=tk.CENTER, pady=(10, 10))
             self.widgets.append(self.heading)
 
@@ -368,17 +394,17 @@ class Screens:
             self.password_entry.bind("<FocusOut>", lambda event: self.on_focusout_entry(self.password_entry, "Password"))
             self.on_focusout_entry(self.password_entry, "Password")
 
-            self.error_message = tk.Label(self.canvas, text="", font=("Poppins Regular", 9), fg="red", bg="#53afc8")
+            self.error_message = tk.Label(self.canvas, text="", font=("Poppins Regular", 9), fg="red")
             self.error_message.pack(anchor=tk.CENTER, pady=(5, 10))
             self.widgets.append(self.error_message)
 
             self.sign_in_button = RoundedButton(
                 self.canvas, text="SIGN IN", font=("Poppins Bold", 15, "bold"),
                 width=250, height=50, radius=29, text_padding=0,
-                button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=self.on_sign_in
             )
             self.sign_in_button.pack(anchor=tk.CENTER, pady=(5, 5))
@@ -396,15 +422,15 @@ class Screens:
             password_empty = self.password_entry.get().strip() in ["Password", ""]
             if username_empty or password_empty:
                 if username_empty:
-                    self.username_entry.config(bg="#f77b7a")
+                    self.username_entry.config(bg=self.app.theme_data['btn_warn_prs'])
                 if password_empty:
-                    self.password_entry.config(bg="#f77b7a")
+                    self.password_entry.config(bg=self.app.theme_data['btn_warn_prs'])
                 self.error_message.config(text="Cannot have blank username or password.")
                 return False
 
             # Check length is greater than 7 characters
             if len(self.password_entry.get()) <= 7:
-                self.password_entry.config(bg="#f77b7a")
+                self.password_entry.config(bg=self.app.theme_data['btn_warn_prs'])
                 self.error_message.config(text="Password must be greater than 7 characters.")
                 return False
 
@@ -420,7 +446,7 @@ class Screens:
                 if i.isdigit():
                     has_digit = True
             if not has_upper or not has_lower or not has_digit:
-                self.password_entry.config(bg="#f77b7a")
+                self.password_entry.config(bg=self.app.theme_data['btn_warn_prs'])
                 self.error_message.config(text="Password must have a number, uppercase, and lowercase characters.")
                 return False
 
@@ -441,7 +467,7 @@ class Screens:
             if user_data is None:
                 self.app.add_new_user_data(entered_username, entered_password)
             elif self.app.encrypt_password(entered_password) != user_data['password']:
-                self.password_entry.config(bg="#f77b7a")
+                self.password_entry.config(bg=self.app.theme_data['btn_warn_prs'])
                 self.error_message.config(text="Incorrect password.")
                 self.update_widgets_background(specific_widget=self.error_message)
                 return
@@ -471,7 +497,7 @@ class Screens:
         def __init__(self, root: tk.Tk, app: RecollectApp):
             super().__init__(root, app, True, False)  # Implements all variables and function from base class "BaseScreen"
 
-            self.logo_canvas = tk.Canvas(self.canvas, background="#53afc8", borderwidth=0, highlightthickness=0)
+            self.logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
             self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw", fill="x")
             self.widgets.append(self.logo_canvas)
 
@@ -487,7 +513,7 @@ class Screens:
             self.transparent_images.append(image_data)
             del logo_image
 
-            self.logo_title = tk.Label(self.logo_canvas, text="Gamemodes", font=("Poppins Regular", 15), bg="#53afc8")
+            self.logo_title = tk.Label(self.logo_canvas, text="Gamemodes", font=("Poppins Regular", 15))
             self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
             self.widgets.append(self.logo_title)
 
@@ -495,19 +521,19 @@ class Screens:
                 self.logo_canvas, font=("", 0, ""),
                 width=50, height=50, radius=0, text_padding=0,
                 image=ImageTk.PhotoImage(Image.open("assets/icons/settings.png").convert("RGBA").resize((35, 35))),
-                button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=self.on_settings_click
             )
             self.settings_button.pack(anchor="ne", pady=(15, 0), side=tk.RIGHT)
             self.widgets.append(self.settings_button)
 
-            self.outer_frame = tk.Frame(self.canvas, bd=0, borderwidth=0, highlightthickness=0, bg="#53b0c8")
+            self.outer_frame = tk.Frame(self.canvas, bd=0, borderwidth=0, highlightthickness=0, bg=self.app.theme_data['accent'])
             self.outer_frame.pack(fill=tk.BOTH, expand=True)
 
-            self.inner_canvas = tk.Canvas(self.outer_frame, bg="#53b0c8", bd=0, borderwidth=0, highlightthickness=0)
+            self.inner_canvas = tk.Canvas(self.outer_frame, bg=self.app.theme_data['accent'], bd=0, borderwidth=0, highlightthickness=0)
             self.inner_canvas.pack(anchor=tk.CENTER, side=tk.LEFT, fill=tk.Y, expand=True)
 
             self.scrollbar = tk.Scrollbar(self.outer_frame, orient=tk.VERTICAL, command=self.inner_canvas.yview)
@@ -517,16 +543,16 @@ class Screens:
             self.root.update()
             self.inner_canvas.bind("<Configure>", lambda e: self.inner_canvas.configure(scrollregion=self.inner_canvas.bbox("all")))
 
-            self.game_button_canvas = tk.Canvas(self.inner_canvas, bg="#53b0c8", bd=0, borderwidth=0, highlightthickness=0)
+            self.game_button_canvas = tk.Canvas(self.inner_canvas, bg=self.app.theme_data['accent'], bd=0, borderwidth=0, highlightthickness=0)
 
             self.game_button = RoundedButton(
                 self.game_button_canvas, font=("", 0, ""),
                 width=600, height=150, radius=29, text_padding=0,
-                bg="#53b0c8",
-                button_background="#617eff", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
+                bg=self.app.theme_data['accent'],
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=None
             )
             self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background())
@@ -536,11 +562,11 @@ class Screens:
             self.game_button = RoundedButton(
                 self.game_button_canvas, font=("", 0, ""),
                 width=600, height=150, radius=29, text_padding=0,
-                bg="#53b0c8",
-                button_background="#617eff", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
+                bg=self.app.theme_data['accent'],
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=None
             )
             self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background())
@@ -550,11 +576,11 @@ class Screens:
             self.game_button = RoundedButton(
                 self.game_button_canvas, font=("", 0, ""),
                 width=600, height=150, radius=29, text_padding=0,
-                bg="#53b0c8",
-                button_background="#617eff", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
+                bg=self.app.theme_data['accent'],
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=None
             )
             self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background())
@@ -578,8 +604,8 @@ class Screens:
         def after_game_button(self, button, image: Image):
             button.game_image = ImageTk.PhotoImage(self.app.add_corners(image.convert("RGBA").resize((130, 130)), 9))
             button.create_image(10, 10, image=button.game_image, anchor="nw", tag="button")
-            button.create_text(150, 20, text="Game Name", fill="black", font=("Poppins Bold", 15, "bold"), anchor="nw", tag="button")
-            button.create_text(150, 60, text="Description", fill="black", font=("Poppins Regular", 12), anchor="nw", tag="button")
+            button.create_text(150, 20, text="Game Name", fill=self.app.theme_data['text'], font=("Poppins Bold", 15, "bold"), anchor="nw", tag="button")
+            button.create_text(150, 60, text="Description", fill=self.app.theme_data['text'], font=("Poppins Regular", 12), anchor="nw", tag="button")
 
         def on_mouse_wheel(self, event):
             self.inner_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
@@ -592,7 +618,7 @@ class Screens:
         def __init__(self, root: tk.Tk, app: RecollectApp):
             super().__init__(root, app, True, True)  # Implements all variables and function from base class "BaseScreen"
 
-            self.logo_canvas = tk.Canvas(self.canvas, background="#53afc8", borderwidth=0, highlightthickness=0)
+            self.logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
             self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw", fill="x")
             self.widgets.append(self.logo_canvas)
 
@@ -608,7 +634,7 @@ class Screens:
             self.transparent_images.append(image_data)
             del logo_image
 
-            self.logo_title = tk.Label(self.logo_canvas, text="Options Menu", font=("Poppins Regular", 15), bg="#53afc8")
+            self.logo_title = tk.Label(self.logo_canvas, text="Options Menu", font=("Poppins Regular", 15))
             self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
             self.widgets.append(self.logo_title)
 
@@ -616,27 +642,27 @@ class Screens:
                 self.sign_out_button = RoundedButton(
                     self.logo_canvas, text="SIGN OUT", font=("Poppins Bold", 15, "bold"),
                     width=210, height=50, radius=29, text_padding=0,
-                    button_background="#5F7BF8", button_foreground="#000000",
-                    button_hover_background="#b14747", button_hover_foreground="#000000",
-                    button_press_background="#fe6666", button_press_foreground="#000000",
-                    outline_colour="black", outline_width=1,
+                    button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                    button_hover_background=self.app.theme_data['btn_warn_hvr'], button_hover_foreground="#000000",
+                    button_press_background=self.app.theme_data['btn_warn_prs'], button_press_foreground="#000000",
+                    outline_colour=self.app.theme_data['outline'], outline_width=1,
                     command=self.on_sign_out
                 )
                 self.sign_out_button.pack(anchor="ne", pady=(15, 0), side=tk.RIGHT)
                 self.widgets.append(self.sign_out_button)
 
-            self.heading = tk.Label(self.canvas, text="Sound Settings", font=("Poppins Bold", 15, "bold"), bg="#53afc8")
+            self.heading = tk.Label(self.canvas, text="Sound Settings", font=("Poppins Bold", 15, "bold"))
             self.heading.pack(anchor=tk.CENTER, pady=(0, 0))
             self.widgets.append(self.heading)
 
             self.mute_button = RoundedButton(
                 self.canvas, text=("MUTE" if self.app.volume.get() != 0 else "UNMUTE"), font=("Poppins Bold", 15, "bold"),
                 width=300, height=50, radius=29, text_padding=0,
-                button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
-                command=lambda: self.on_mute(self.volume_button)
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=lambda: self.on_mute()
             )
             self.mute_button.pack(anchor=tk.CENTER, pady=(0, 0))
             self.widgets.append(self.mute_button)
@@ -644,10 +670,10 @@ class Screens:
             self.volume_button = RoundedButton(
                 self.canvas, text="", font=("Poppins Bold", 10, "bold"),
                 width=300, height=50, radius=29, text_padding=0,
-                button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#5F7BF8", button_hover_foreground="#000000",
-                button_press_background="#5F7BF8", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_bg'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_bg'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=None
             )
             self.volume_button.on_regen = lambda: self.gen_volume_button(self.volume_button)
@@ -659,27 +685,27 @@ class Screens:
             self.hidden_songs_button = RoundedButton(
                 self.canvas, text="View Hidden Songs", font=("Poppins Bold", 10, "bold"),
                 width=300, height=50, radius=29, text_padding=0,
-                button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=None
             )
             self.hidden_songs_button.pack(anchor=tk.CENTER, pady=(5, 0))
             self.widgets.append(self.hidden_songs_button)
 
-            self.heading = tk.Label(self.canvas, text="Appearance", font=("Poppins Bold", 15, "bold"), bg="#53afc8")
+            self.heading = tk.Label(self.canvas, text="Appearance", font=("Poppins Bold", 15, "bold"))
             self.heading.pack(anchor=tk.CENTER, pady=(15, 0))
             self.widgets.append(self.heading)
 
             self.theme_button = RoundedButton(
                 self.canvas, text="", font=("Poppins Bold", 15, "bold"),
                 width=300, height=50, radius=29, text_padding=0,
-                button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
-                command=None
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=lambda: self.on_change_theme()
             )
             self.theme_button.on_regen = lambda: self.gen_theme_button(self.theme_button)
             self.theme_button.pack(anchor=tk.CENTER, pady=(0, 0))
@@ -688,10 +714,10 @@ class Screens:
             self.leave_button = RoundedButton(
                 self.canvas, text="LEAVE AND APPLY", font=("Poppins Bold", 15, "bold"),
                 width=300, height=50, radius=29, text_padding=0,
-                button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=self.on_leave_options
             )
             self.leave_button.pack(anchor=tk.CENTER, pady=(30, 0))
@@ -714,7 +740,7 @@ class Screens:
             self.volume_slider.place(x=(start_x + text_width + 100 / 2), y=center_y, anchor="center")
             self.volume_slider.configure(command=lambda value: button.itemconfig(self.volume_text_id, text=f"VOLUME: {value}%  "))
 
-        def on_mute(self, button):
+        def on_mute(self):
             if self.app.volume.get() != 0:  # Mutes
                 self.app.last_volume = self.app.volume.get()
                 self.app.volume.set(0)
@@ -724,16 +750,16 @@ class Screens:
                     self.app.last_volume = 50
                 self.app.volume.set(self.app.last_volume)
                 self.mute_button.text = "MUTE"
-            button.itemconfig(self.volume_text_id, text=f"VOLUME: {self.app.volume.get()}%  ")
+            self.volume_button.itemconfig(self.volume_text_id, text=f"VOLUME: {self.app.volume.get()}%  ")
             self.mute_button.generate_button()  # Regenerates mute button to update label (UNMUTE/MUTE)
 
-        @staticmethod
-        def gen_theme_button(button):
+        def gen_theme_button(self, button):
             first_text = "THEME: "
-            second_text = "Default"
+            second_text = self.app.theme
 
             bold_font = tk_font.Font(family="Poppins Bold", size=15, weight="bold")
-            normal_font = tk_font.Font(family="Poppins Regular", size=15, weight="normal")
+            normal_font = tk_font.Font(family="Poppins Regular", size=13, weight="normal")
+            small_font = tk_font.Font(family="Poppins Regular", size=7, weight="normal")
 
             bold_text_width = bold_font.measure(first_text)
             normal_text_width = normal_font.measure(second_text)
@@ -743,6 +769,19 @@ class Screens:
 
             button.create_text((start_x + bold_text_width / 2), center_y, text=first_text, font=bold_font, anchor="center", tag="button")
             button.create_text((start_x + bold_text_width + normal_text_width / 2), center_y, text=second_text, font=normal_font, anchor="center", tag="button")
+            button.create_text(button.winfo_width() - 4, button.winfo_height() + 4, text="Click to cycle", font=small_font, anchor="se", tag="button")
+
+        def on_change_theme(self):
+            all_themes = list(self.app.themes.keys())
+            current_index = all_themes.index(self.app.theme)
+            next_index = current_index + 1 if current_index < len(all_themes) - 1 else 0
+            self.app.theme = all_themes[next_index]
+            self.app.theme_data = self.app.themes[self.app.theme]
+
+            print(f"Changed theme to: {self.app.theme}")
+
+            self.theme_button.generate_button()  # Regenerates theme button to update theme name
+
 
         def on_leave_options(self):
             self.app.finish_overlaying_screen(self.get())
