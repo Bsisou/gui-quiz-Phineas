@@ -55,6 +55,16 @@ class RecollectApp:
         self.theme = list(self.themes.keys())[0]
         self.theme_data = self.themes[self.theme]
 
+        """
+        user_data_template = {
+            "password": None,
+            "options": {
+                "volume": None,
+                "theme": None
+            }
+        }
+        """
+
         # Overriding default font if custom font does not work
         self.defaultFont = tk_font.nametofont("TkDefaultFont")
         self.defaultFont.configure(family="Calibri")
@@ -100,15 +110,20 @@ class RecollectApp:
 
     def add_new_user_data(self, username, password):
         self.check_if_data_file_exists()
-
+        user_data = {
+            "password": self.encrypt_password(password),
+            "options": {
+                "volume": int(self.volume.get()),
+                "theme": self.theme
+            }
+        }
         with open("data.json", "r+") as data_file:
             data = json.load(data_file)
-            data['users'][username] = {
-                "password": self.encrypt_password(password)
-            }
+            data['users'][username] = user_data
             data_file.seek(0)
             data_file.truncate()
             json.dump(data, data_file, indent=2)
+        return user_data
 
     def rewrite_user_data(self, username, user_data):
         self.check_if_data_file_exists()
@@ -460,13 +475,14 @@ class Screens:
                 self.update_widgets_background(specific_widget=self.error_message)
                 return
 
-            entered_username = self.username_entry.get().strip().lower()
+            entered_username = self.username_entry.get().strip().lower()  # Lowercase usernames only
             entered_password = self.password_entry.get()
 
             user_data = self.app.get_user_data(entered_username)
-            if user_data is None:
-                self.app.add_new_user_data(entered_username, entered_password)
-            elif self.app.encrypt_password(entered_password) != user_data['password']:
+            if user_data is None:  # Account does not exist
+                user_data = self.app.add_new_user_data(entered_username, entered_password)  # Create new account
+
+            elif self.app.encrypt_password(entered_password) != user_data['password']:  # Account exists, but wrong password
                 self.password_entry.config(bg=self.app.theme_data['btn_warn_prs'])
                 self.error_message.config(text="Incorrect password.")
                 self.update_widgets_background(specific_widget=self.error_message)
@@ -474,6 +490,13 @@ class Screens:
 
             # Password is correct / Account created
             self.app.username = entered_username
+
+            try:
+                self.app.volume.set(int(user_data['options']['volume']))
+                self.app.theme = user_data['options']['theme']
+                self.app.theme_data = self.app.themes[user_data['options']['theme']]
+            except KeyError:
+                print("User has no options data, continuing with existing options")
 
             self.destroy()
             self.app.show_screen(Screens.GameSelection(self.root, self.app).get())
@@ -782,8 +805,28 @@ class Screens:
 
             self.theme_button.generate_button()  # Regenerates theme button to update theme name
 
+        def save_options(self):
+            # Makes sure user is signed in
+            if self.app.username is None:
+                return
+
+            current_user_data = self.app.get_user_data(self.app.username)
+            if current_user_data is None:  # User has no data for some reason
+                self.app.username = None  # Log out and allow the user to sign in again
+                return
+
+            # Allows support for old accounts (prevents KeyError)
+            if "options" not in current_user_data:
+                current_user_data['options'] = {}
+
+            current_user_data['options']['volume'] = int(self.app.volume.get())
+            current_user_data['options']['theme'] = self.app.theme
+
+            self.app.rewrite_user_data(self.app.username, current_user_data)
 
         def on_leave_options(self):
+            self.save_options()
+
             self.app.finish_overlaying_screen(self.get())
             del self
 
