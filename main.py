@@ -30,6 +30,9 @@ class RecollectApp:
 
         self.blob = Image.open("assets/blob.png")
 
+        self.volume = tk.IntVar(value=50)
+        self.last_volume = 50
+
         self.current_screen = None
         self.show_screen(Screens.Homepage(self.root, self).get())
 
@@ -388,6 +391,7 @@ class Screens:
             self.app.show_screen(Screens.Homepage(self.root, self.app).get())
 
         def check_met_criteria(self):
+            # Check if any entry is empty
             username_empty = self.username_entry.get().strip() in ["Username", ""]
             password_empty = self.password_entry.get().strip() in ["Password", ""]
             if username_empty or password_empty:
@@ -398,11 +402,13 @@ class Screens:
                 self.error_message.config(text="Cannot have blank username or password.")
                 return False
 
+            # Check length is greater than 7 characters
             if len(self.password_entry.get()) <= 7:
                 self.password_entry.config(bg="#f77b7a")
                 self.error_message.config(text="Password must be greater than 7 characters.")
                 return False
 
+            # Check number, uppercase, and lowercase criteria
             has_upper = False
             has_lower = False
             has_digit = False
@@ -606,45 +612,49 @@ class Screens:
             self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
             self.widgets.append(self.logo_title)
 
-            self.sign_out_button = RoundedButton(
-                self.logo_canvas, text="SIGN OUT", font=("Poppins Bold", 15, "bold"),
-                width=210, height=50, radius=29, text_padding=0,
-                button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#b14747", button_hover_foreground="#000000",
-                button_press_background="#fe6666", button_press_foreground="#000000",
-                outline_colour="black", outline_width=1,
-                command=self.on_sign_out
-            )
-            self.sign_out_button.pack(anchor="ne", pady=(15, 0), side=tk.RIGHT)
-            self.widgets.append(self.sign_out_button)
+            if self.app.username is not None:
+                self.sign_out_button = RoundedButton(
+                    self.logo_canvas, text="SIGN OUT", font=("Poppins Bold", 15, "bold"),
+                    width=210, height=50, radius=29, text_padding=0,
+                    button_background="#5F7BF8", button_foreground="#000000",
+                    button_hover_background="#b14747", button_hover_foreground="#000000",
+                    button_press_background="#fe6666", button_press_foreground="#000000",
+                    outline_colour="black", outline_width=1,
+                    command=self.on_sign_out
+                )
+                self.sign_out_button.pack(anchor="ne", pady=(15, 0), side=tk.RIGHT)
+                self.widgets.append(self.sign_out_button)
 
             self.heading = tk.Label(self.canvas, text="Sound Settings", font=("Poppins Bold", 15, "bold"), bg="#53afc8")
             self.heading.pack(anchor=tk.CENTER, pady=(0, 0))
             self.widgets.append(self.heading)
 
             self.mute_button = RoundedButton(
-                self.canvas, text="MUTE", font=("Poppins Bold", 15, "bold"),
+                self.canvas, text=("MUTE" if self.app.volume.get() != 0 else "UNMUTE"), font=("Poppins Bold", 15, "bold"),
                 width=300, height=50, radius=29, text_padding=0,
                 button_background="#5F7BF8", button_foreground="#000000",
                 button_hover_background="#4b61c4", button_hover_foreground="#000000",
                 button_press_background="#2d3b77", button_press_foreground="#000000",
                 outline_colour="black", outline_width=1,
-                command=None
+                command=lambda: self.on_mute(self.volume_button)
             )
             self.mute_button.pack(anchor=tk.CENTER, pady=(0, 0))
             self.widgets.append(self.mute_button)
 
             self.volume_button = RoundedButton(
-                self.canvas, text="VOLUME: 50%", font=("Poppins Bold", 10, "bold"),
+                self.canvas, text="", font=("Poppins Bold", 10, "bold"),
                 width=300, height=50, radius=29, text_padding=0,
                 button_background="#5F7BF8", button_foreground="#000000",
-                button_hover_background="#4b61c4", button_hover_foreground="#000000",
-                button_press_background="#2d3b77", button_press_foreground="#000000",
+                button_hover_background="#5F7BF8", button_hover_foreground="#000000",
+                button_press_background="#5F7BF8", button_press_foreground="#000000",
                 outline_colour="black", outline_width=1,
                 command=None
             )
+            self.volume_button.on_regen = lambda: self.gen_volume_button(self.volume_button)
             self.volume_button.pack(anchor=tk.CENTER, pady=(5, 0))
             self.widgets.append(self.volume_button)
+            self.volume_slider: tk.Scale | None = None
+            self.volume_text_id = None
 
             self.hidden_songs_button = RoundedButton(
                 self.canvas, text="View Hidden Songs", font=("Poppins Bold", 10, "bold"),
@@ -663,7 +673,7 @@ class Screens:
             self.widgets.append(self.heading)
 
             self.theme_button = RoundedButton(
-                self.canvas, text="THEME: Default", font=("Poppins Bold", 15, "bold"),
+                self.canvas, text="", font=("Poppins Bold", 15, "bold"),
                 width=300, height=50, radius=29, text_padding=0,
                 button_background="#5F7BF8", button_foreground="#000000",
                 button_hover_background="#4b61c4", button_hover_foreground="#000000",
@@ -671,6 +681,7 @@ class Screens:
                 outline_colour="black", outline_width=1,
                 command=None
             )
+            self.theme_button.on_regen = lambda: self.gen_theme_button(self.theme_button)
             self.theme_button.pack(anchor=tk.CENTER, pady=(0, 0))
             self.widgets.append(self.theme_button)
 
@@ -687,6 +698,51 @@ class Screens:
             self.widgets.append(self.leave_button)
 
             self.finish_init()
+
+        def gen_volume_button(self, button):
+            text = f"VOLUME: {self.app.volume.get()}%   "
+            self.volume_slider = tk.Scale(button, from_=0, to=100, orient="horizontal", variable=self.app.volume, length=100, showvalue=False, bg=button.button_background, bd=0, borderwidth=0, highlightthickness=0)
+
+            bold_font = tk_font.Font(family="Poppins Bold", size=10, weight="bold")
+
+            text_width = bold_font.measure(text)
+            total_width = text_width + 100
+            start_x = (button.winfo_width() - total_width) / 2
+            center_y = button.winfo_height() / 2
+
+            self.volume_text_id = button.create_text((start_x + text_width / 2), center_y, text=text, font=bold_font, anchor="center", tag="button")
+            self.volume_slider.place(x=(start_x + text_width + 100 / 2), y=center_y, anchor="center")
+            self.volume_slider.configure(command=lambda value: button.itemconfig(self.volume_text_id, text=f"VOLUME: {value}%  "))
+
+        def on_mute(self, button):
+            if self.app.volume.get() != 0:  # Mutes
+                self.app.last_volume = self.app.volume.get()
+                self.app.volume.set(0)
+                self.mute_button.text = "UNMUTE"
+            else:  # Unmutes to last volume
+                if self.app.last_volume == 0:
+                    self.app.last_volume = 50
+                self.app.volume.set(self.app.last_volume)
+                self.mute_button.text = "MUTE"
+            button.itemconfig(self.volume_text_id, text=f"VOLUME: {self.app.volume.get()}%  ")
+            self.mute_button.generate_button()  # Regenerates mute button to update label (UNMUTE/MUTE)
+
+        @staticmethod
+        def gen_theme_button(button):
+            first_text = "THEME: "
+            second_text = "Default"
+
+            bold_font = tk_font.Font(family="Poppins Bold", size=15, weight="bold")
+            normal_font = tk_font.Font(family="Poppins Regular", size=15, weight="normal")
+
+            bold_text_width = bold_font.measure(first_text)
+            normal_text_width = normal_font.measure(second_text)
+            total_text_width = bold_text_width + normal_text_width
+            start_x = (button.winfo_width() - total_text_width) / 2
+            center_y = button.winfo_height() / 2
+
+            button.create_text((start_x + bold_text_width / 2), center_y, text=first_text, font=bold_font, anchor="center", tag="button")
+            button.create_text((start_x + bold_text_width + normal_text_width / 2), center_y, text=second_text, font=normal_font, anchor="center", tag="button")
 
         def on_leave_options(self):
             self.app.finish_overlaying_screen(self.get())
@@ -789,6 +845,10 @@ class RoundedButton(tk.Canvas):
             self["height"] = (text_rect[3] - text_rect[1]) + 10
         self.resize()
 
+        for widget in self.winfo_children():
+            widget.destroy()
+
+        # Custom regen function if provided
         if self.on_regen is not None:
             self.on_regen()
 
@@ -801,7 +861,7 @@ class RoundedButton(tk.Canvas):
         y = (height - (text_bbox[3] - text_bbox[1])) / 2
         self.moveto(self.text_obj, x, y)
 
-    def on_event(self, event):
+    def on_event(self, event):  # Handles all hover and press events
         if event.type == tk.EventType.ButtonPress:
             self.itemconfig(self.button_obj, fill=self.button_press_background)
             self.itemconfig(self.text_obj, fill=self.button_press_foreground)
