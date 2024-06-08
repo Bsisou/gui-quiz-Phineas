@@ -1,8 +1,9 @@
+import hashlib
 import json
 import os
 import tkinter as tk
 import tkinter.font as tk_font
-import hashlib
+
 import psutil  # for memory usage only - pip install psutil
 import pyglet  # pip install pyglet
 from PIL import Image, ImageTk, ImageDraw  # pip install pillow
@@ -47,6 +48,10 @@ class RecollectApp:
                 "btn_warn_hvr": "#400c13",
                 "btn_warn_prs": "#8d1c2a",
             }
+        }
+
+        self.games = {
+            "Matching Tiles": Games.MatchingTiles
         }
 
         self.volume = tk.IntVar(value=50)
@@ -523,6 +528,8 @@ class Screens:
         def __init__(self, root: tk.Tk, app: RecollectApp):
             super().__init__(root, app, True, False)  # Implements all variables and function from base class "BaseScreen"
 
+            self.selected_game = None
+
             self.logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
             self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw", fill="x")
             self.widgets.append(self.logo_canvas)
@@ -556,20 +563,20 @@ class Screens:
             self.settings_button.pack(anchor="ne", pady=(15, 0), side=tk.RIGHT)
             self.widgets.append(self.settings_button)
 
-            self.outer_frame = tk.Frame(self.canvas, bd=0, borderwidth=0, highlightthickness=0, bg=self.app.theme_data['accent'])
-            self.outer_frame.pack(fill=tk.BOTH, expand=True)
+            self.game_outer_frame = tk.Frame(self.canvas, bd=0, borderwidth=0, highlightthickness=0, bg=self.app.theme_data['accent'])
+            self.game_outer_frame.pack(fill=tk.BOTH, expand=True)
 
-            self.inner_canvas = tk.Canvas(self.outer_frame, bg=self.app.theme_data['accent'], bd=0, borderwidth=0, highlightthickness=0)
-            self.inner_canvas.pack(anchor=tk.CENTER, side=tk.LEFT, fill=tk.Y, expand=True)
+            self.game_inner_canvas = tk.Canvas(self.game_outer_frame, bg=self.app.theme_data['accent'], bd=0, borderwidth=0, highlightthickness=0)
+            self.game_inner_canvas.pack(anchor=tk.CENTER, side=tk.LEFT, fill=tk.Y, expand=True)
 
-            self.scrollbar = tk.Scrollbar(self.outer_frame, orient=tk.VERTICAL, command=self.inner_canvas.yview)
+            self.scrollbar = tk.Scrollbar(self.game_outer_frame, orient=tk.VERTICAL, command=self.game_inner_canvas.yview)
             self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-            self.inner_canvas.configure(yscrollcommand=self.scrollbar.set)
+            self.game_inner_canvas.configure(yscrollcommand=self.scrollbar.set)
             self.root.update()
-            self.inner_canvas.bind("<Configure>", lambda e: self.inner_canvas.configure(scrollregion=self.inner_canvas.bbox("all")))
+            self.game_inner_canvas.bind("<Configure>", lambda e: self.game_inner_canvas.configure(scrollregion=self.game_inner_canvas.bbox("all")))
 
-            self.game_button_canvas = tk.Canvas(self.inner_canvas, bg=self.app.theme_data['accent'], bd=0, borderwidth=0, highlightthickness=0)
+            self.game_button_canvas = tk.Canvas(self.game_inner_canvas, bg=self.app.theme_data['accent'], bd=0, borderwidth=0, highlightthickness=0)
 
             self.game_button = RoundedButton(
                 self.game_button_canvas, font=("", 0, ""),
@@ -579,9 +586,9 @@ class Screens:
                 button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
                 button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
-                command=None
+                command=lambda: self.on_game_select("Matching Tiles")
             )
-            self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background())
+            self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background(), "MATCHING TILES", "Flip over and memorise pairs of cards, trying to find matching images.\nEnhances concentration and memory skills.")
             self.game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
             self.game_button.on_regen()
 
@@ -595,7 +602,7 @@ class Screens:
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=None
             )
-            self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background())
+            self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background(), "Coming soon...", "")
             self.game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
             self.game_button.on_regen()
 
@@ -609,36 +616,124 @@ class Screens:
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=None
             )
-            self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background())
+            self.game_button.on_regen = lambda: self.after_game_button(self.game_button, self.app.get_background(), "Coming soon...", "")
             self.game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
             self.game_button.on_regen()
 
-            self.game_button_window = self.inner_canvas.create_window((0, 0), window=self.game_button_canvas, anchor="nw")
+            self.game_button_window = self.game_inner_canvas.create_window((0, 0), window=self.game_button_canvas, anchor="nw")
 
-            self.inner_canvas.bind("<MouseWheel>", self.on_mouse_wheel)
+            self.game_inner_canvas.bind("<MouseWheel>", self.on_mouse_wheel)
             self.game_button_canvas.bind("<MouseWheel>", self.on_mouse_wheel)
             for child in self.game_button_canvas.children.values():
                 child.bind("<MouseWheel>", self.on_mouse_wheel)
 
             # Fixes game button canvas getting cut off
             self.root.update()
-            x1, y1, x2, y2 = self.inner_canvas.bbox("all")
-            self.inner_canvas.config(width=x2 - x1, height=y2 - y1)
+            x1, y1, x2, y2 = self.game_inner_canvas.bbox("all")
+            self.game_inner_canvas.config(width=x2 - x1, height=y2 - y1)
+
+            # Create difficulty canvas, but don't pack until game is selected
+            self.difficulty_canvas = tk.Canvas(self.canvas, bd=0, borderwidth=0, highlightthickness=0, bg=self.app.theme_data['accent'])
+
+            self.back_button = RoundedButton(
+                self.difficulty_canvas, text="BACK", font=("Poppins Bold", 15, "bold"),
+                width=210, height=50, radius=29, text_padding=0,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=self.on_difficulty_back
+            )
+            self.back_button.pack(pady=(5, 0), padx=(10, 0), anchor="nw")
+
+            self.heading = tk.Label(self.difficulty_canvas, text="Select a difficulty level", font=("Poppins Bold", 15, "bold"), bg=self.app.theme_data['accent'])
+            self.heading.pack(anchor=tk.CENTER, pady=(10, 0))
+
+            self.difficulty_button = RoundedButton(
+                self.difficulty_canvas, font=("", 0, ""),
+                width=450, height=85, radius=29, text_padding=0,
+                bg=self.app.theme_data['accent'],
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=lambda: self.on_difficulty_select("easy")
+            )
+            self.difficulty_button.on_regen = lambda: self.after_difficulty_button(self.difficulty_button, "Easy", "Match simple images of random categories\nEnhances memory")
+            self.difficulty_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
+            self.difficulty_button.on_regen()
+
+            self.difficulty_button = RoundedButton(
+                self.difficulty_canvas, font=("", 0, ""),
+                width=450, height=85, radius=29, text_padding=0,
+                bg=self.app.theme_data['accent'],
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=lambda: self.on_difficulty_select("normal")
+            )
+            self.difficulty_button.on_regen = lambda: self.after_difficulty_button(self.difficulty_button, "Normal", "Match images of the same category\nEnhances memory")
+            self.difficulty_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
+            self.difficulty_button.on_regen()
+
+            self.difficulty_button = RoundedButton(
+                self.difficulty_canvas, font=("", 0, ""),
+                width=450, height=85, radius=29, text_padding=0,
+                bg=self.app.theme_data['accent'],
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=lambda: self.on_difficulty_select("hard")
+            )
+            self.difficulty_button.on_regen = lambda: self.after_difficulty_button(self.difficulty_button, "Hard", "Match the answer to simple math problems\nEnhances math and memory")
+            self.difficulty_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
+            self.difficulty_button.on_regen()
 
             self.finish_init()
 
-        def after_game_button(self, button, image: Image):
+        def after_game_button(self, button, image: Image, name: str, description: str):
             button.game_image = ImageTk.PhotoImage(self.app.add_corners(image.convert("RGBA").resize((130, 130)), 9))
             button.create_image(10, 10, image=button.game_image, anchor="nw", tag="button")
-            button.create_text(150, 20, text="Game Name", fill=self.app.theme_data['text'], font=("Poppins Bold", 15, "bold"), anchor="nw", tag="button")
-            button.create_text(150, 60, text="Description", fill=self.app.theme_data['text'], font=("Poppins Regular", 12), anchor="nw", tag="button")
+            button.create_text(150, 10, text=name, fill=self.app.theme_data['text'], font=("Poppins Bold", 15, "bold"), anchor="nw", tag="button")
+            button.create_text(150, 50, text=description, fill=self.app.theme_data['text'], font=("Poppins Regular", 10), width=button.width - 160, anchor="nw", tag="button")
+
+        def after_difficulty_button(self, button, title: str, text: str):
+            button.create_text(10, 0, text=title, fill=self.app.theme_data['text'], font=("Poppins Bold", 14, "bold"), anchor="nw", tag="button")
+            button.create_text(10, 33, text=text, fill=self.app.theme_data['text'], font=("Poppins Regular", 9), width=button.width - 10, anchor="nw", tag="button")
 
         def on_mouse_wheel(self, event):
-            self.inner_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            self.game_inner_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
         def on_settings_click(self):
-            print("Pressed settings button")
             self.app.show_overlaying_screen(Screens.SettingsMenu(self.root, self.app, self).get())
+
+        def on_difficulty_back(self):
+            self.selected_game = None
+
+            # Update title
+            self.logo_title.config(text="Gamemodes")
+            self.update_widgets_background(self.logo_title)  # Updates the background for title
+
+            # Remove difficulty buttons and show game buttons
+            self.difficulty_canvas.pack_forget()
+            self.game_outer_frame.pack(fill=tk.BOTH, expand=True)
+
+        def on_game_select(self, game_name: str):
+            self.selected_game = game_name
+
+            # Update title
+            self.logo_title.config(text=game_name)
+            self.update_widgets_background(self.logo_title)  # Updates the background for title
+
+            # Remove game buttons and show difficulty buttons
+            self.game_outer_frame.pack_forget()
+            self.difficulty_canvas.pack(fill=tk.BOTH, expand=True)
+
+        def on_difficulty_select(self, difficulty: str):
+            self.app.show_screen(self.app.games[self.selected_game](self.root, self.app, difficulty).get())
+            del self
 
     class SettingsMenu(BaseScreen):
         def __init__(self, root: tk.Tk, app: RecollectApp, caller=None):
@@ -847,6 +942,30 @@ class Screens:
             del self
 
 
+class Games:
+    class MatchingTiles(BaseScreen):
+        def __init__(self, root: tk.Tk, app: RecollectApp, difficulty: str):
+            super().__init__(root, app, False, False)  # Implements all variables and function from base class "BaseScreen"
+
+            print(f"Started Matching Tiles game with difficulty {difficulty}")
+
+            self.canvas.config(bg=self.app.theme_data['accent'])
+
+            self.pause_button = RoundedButton(
+                self.canvas, font=("", 0, ""),
+                width=50, height=50, radius=0, text_padding=0,
+                image=ImageTk.PhotoImage(Image.open("assets/icons/pause.png").convert("RGBA").resize((35, 35))),
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=None
+            )
+            self.pause_button.pack(anchor="ne", pady=(0, 0), side=tk.RIGHT)
+
+            self.finish_init()
+
+
 class RoundedButton(tk.Canvas):
     # Adapted from https://stackoverflow.com/a/69092113
     def __init__(self, parent=None, text: str = "", font: tuple = ("Times", 30, "bold"),
@@ -875,6 +994,9 @@ class RoundedButton(tk.Canvas):
         self.outline_width = outline_width
         self.command = command
         self.on_regen = on_regen
+
+        self.width = kwargs['width']
+        self.height = kwargs['height']
 
         self.hovering_button = False
 
@@ -928,7 +1050,7 @@ class RoundedButton(tk.Canvas):
         )
         self.text_obj = self.create_text(0, 0, text=self.text, tags="button", fill=self.button_foreground, font=self.font, justify=tk.CENTER)
         if self.image is not None:
-            self.image_obj = self.create_image(self.winfo_width() / 2, self.winfo_height() / 2, image=self.image, tags="button")
+            self.image_obj = self.create_image(self.width / 2, self.height / 2, image=self.image, tags="button")
 
         text_rect = self.bbox(self.text_obj)
         if int(self["width"]) < text_rect[2] - text_rect[0]:
