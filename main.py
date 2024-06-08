@@ -148,9 +148,12 @@ class RecollectApp:
         self.current_screen.pack_forget()
         overlaying_screen.pack(side="top", fill=tk.BOTH, expand=True)
 
-    def finish_overlaying_screen(self, overlaying_screen: tk.Canvas):
+    def finish_overlaying_screen(self, overlaying_screen: tk.Canvas, screen=None):
         overlaying_screen.destroy()
-        self.current_screen.pack(side="top", fill=tk.BOTH, expand=True)
+        if screen is None:  # Do not update screen if None
+            self.current_screen.pack(side="top", fill=tk.BOTH, expand=True)
+        else:  # Update screen if screen is provided
+            self.show_screen(screen)
 
     @staticmethod
     def add_corners(image: Image, radius: int):
@@ -355,7 +358,7 @@ class Screens:
                 self.app.show_screen(Screens.GameSelection(self.root, self.app).get())
 
         def on_click_options(self):
-            self.app.show_overlaying_screen(Screens.SettingsMenu(self.root, self.app).get())
+            self.app.show_overlaying_screen(Screens.SettingsMenu(self.root, self.app, self).get())
 
     class Login(BaseScreen):
         def __init__(self, root: tk.Tk, app: RecollectApp):
@@ -635,11 +638,14 @@ class Screens:
 
         def on_settings_click(self):
             print("Pressed settings button")
-            self.app.show_overlaying_screen(Screens.SettingsMenu(self.root, self.app).get())
+            self.app.show_overlaying_screen(Screens.SettingsMenu(self.root, self.app, self).get())
 
     class SettingsMenu(BaseScreen):
-        def __init__(self, root: tk.Tk, app: RecollectApp):
+        def __init__(self, root: tk.Tk, app: RecollectApp, caller=None):
             super().__init__(root, app, True, True)  # Implements all variables and function from base class "BaseScreen"
+            self.caller = caller
+
+            self.original_theme = self.app.theme
 
             self.logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
             self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw", fill="x")
@@ -827,7 +833,11 @@ class Screens:
         def on_leave_options(self):
             self.save_options()
 
-            self.app.finish_overlaying_screen(self.get())
+            # If theme is updated, regenerate last screen (self.caller)
+            if self.original_theme != self.app.theme and self.caller is not None:  # self.caller needs to be provided to regenerate it
+                self.app.finish_overlaying_screen(self.get(), screen=self.caller.__class__(self.root, self.app).get())  # Recreates class so the themes are updated
+            else:
+                self.app.finish_overlaying_screen(self.get())  # Screen not specified so screen will not regenerate (saves resources)
             del self
 
         def on_sign_out(self):
