@@ -87,6 +87,10 @@ class RecollectApp:
         return ImageTk.PhotoImage(blob)
 
     @staticmethod
+    def get_coordinates_relative_window(widget):
+        return widget.winfo_rootx() - root.winfo_rootx(), widget.winfo_rooty() - root.winfo_rooty()
+
+    @staticmethod
     def encrypt_str(raw: str):
         sha256 = hashlib.sha256()
         sha256.update(raw.encode('utf-8'))
@@ -194,9 +198,6 @@ class BaseScreen:
         if self.has_blobs:
             self.update_blobs()
 
-        # self.canvas.pack(side="top", fill=tk.BOTH, expand=True)  # can be removed? (pack first so coordinates work)
-        self.canvas.grid_columnconfigure(0, weight=1)
-
         self.transparent_images = []
         self.widgets = []
 
@@ -280,7 +281,8 @@ class BaseScreen:
 
         update_widgets = self.widgets if specific_widget is None else [specific_widget]
         for widget in update_widgets:
-            x1, y1 = widget.winfo_x(), widget.winfo_y()
+            # x1, y1 = widget.winfo_x(), widget.winfo_y()
+            x1, y1 = self.app.get_coordinates_relative_window(widget)
             x2, y2 = x1 + widget.winfo_width(), y1 + widget.winfo_height()
 
             background_at_bbox = self.current_background.crop((x1, y1, x2, y2))
@@ -312,7 +314,7 @@ class Screens:
                 "updated_image": ImageTk.PhotoImage(logo_image)  # Used to save only
             }
             self.logo_label.config(image=image_data['updated_image'])
-            self.logo_label.grid(row=0, column=0, pady=(50, 0), sticky="")
+            self.logo_label.pack(anchor=tk.CENTER, pady=(50, 0))
             self.transparent_images.append(image_data)
             del logo_image
 
@@ -325,7 +327,7 @@ class Screens:
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=self.on_click_start
             )
-            self.start_button.grid(row=1, column=0, pady=(30, 0), sticky="")
+            self.start_button.pack(anchor=tk.CENTER, pady=(30, 0))
             self.widgets.append(self.start_button)
 
             self.options_button = RoundedButton(
@@ -337,7 +339,7 @@ class Screens:
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=self.on_click_options
             )
-            self.options_button.grid(row=2, column=0, pady=(20, 0), sticky="")
+            self.options_button.pack(anchor=tk.CENTER, pady=(20, 0))
             self.widgets.append(self.options_button)
 
             self.quit_button = RoundedButton(
@@ -349,7 +351,7 @@ class Screens:
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=lambda: root.destroy()
             )
-            self.quit_button.grid(row=3, column=0, pady=(20, 20), sticky="")
+            self.quit_button.pack(anchor=tk.CENTER, pady=(20, 20))
             self.widgets.append(self.quit_button)
 
             self.finish_init()
@@ -928,11 +930,20 @@ class Screens:
         def on_leave_options(self):
             self.save_options()
 
+            if self.caller is not None and self.caller.__class__.__name__ == "PauseMenu":
+                self.get().destroy()  # Can't use finish_overlaying_screen since it will pack current screen
+                self.caller.canvas.pack(side="top", fill=tk.BOTH, expand=True)  # Packs pause menu
+                del self
+                return
+
             # If theme is updated, regenerate last screen (self.caller)
-            if self.original_theme != self.app.theme and self.caller is not None:  # self.caller needs to be provided to regenerate it
+            if self.caller is not None and self.original_theme != self.app.theme:
+                # Only update theme if not in game
                 self.app.finish_overlaying_screen(self.get(), screen=self.caller.__class__(self.root, self.app).get())  # Recreates class so the themes are updated
-            else:
-                self.app.finish_overlaying_screen(self.get())  # Screen not specified so screen will not regenerate (saves resources)
+                del self
+                return
+
+            self.app.finish_overlaying_screen(self.get())  # Screen not specified so screen will not regenerate (saves resources)
             del self
 
         def on_sign_out(self):
@@ -941,12 +952,165 @@ class Screens:
             self.app.show_screen(Screens.Homepage(self.root, self.app).get())
             del self
 
+    class PauseMenu(BaseScreen):
+        def __init__(self, root: tk.Tk, app: RecollectApp, game_name: str, difficulty: str, caller=None):
+            super().__init__(root, app, True, False)  # Implements all variables and function from base class "BaseScreen"
+            self.caller = caller
+
+            self.logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
+            self.logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw", fill="x")
+            self.widgets.append(self.logo_canvas)
+
+            logo_image = Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90))  # Must be multiple of 935 x 306
+            self.logo_label = tk.Label(self.logo_canvas, borderwidth=0, highlightthickness=0)
+            image_data = {
+                "label": self.logo_label,
+                "raw_image": logo_image,
+                "updated_image": ImageTk.PhotoImage(logo_image)  # Used to save only
+            }
+            self.logo_label.config(image=image_data['updated_image'])
+            self.logo_label.pack(anchor="nw", padx=(5, 0), pady=(3, 3), side=tk.LEFT)
+            self.transparent_images.append(image_data)
+            del logo_image
+
+            self.logo_title = tk.Label(self.logo_canvas, text=f"{game_name} ({difficulty.capitalize()} mode)", font=("Poppins Regular", 15))
+            self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
+            self.widgets.append(self.logo_title)
+
+            self.heading = tk.Label(self.canvas, text="GAME PAUSED", font=("Poppins Bold", 17, "bold"))
+            self.heading.pack(anchor=tk.CENTER, pady=(20, 0))
+            self.widgets.append(self.heading)
+
+            self.unpause_button = RoundedButton(
+                self.canvas, text="UNPAUSE", font=("Poppins Bold", 17, "bold"),
+                width=350, height=75, radius=29, text_padding=0,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=self.on_unpause_button
+            )
+            self.unpause_button.pack(anchor=tk.CENTER, pady=(20, 0))
+            self.widgets.append(self.unpause_button)
+
+            self.options_button = RoundedButton(
+                self.canvas, text="OPTIONS", font=("Poppins Bold", 15, "bold"),
+                width=300, height=50, radius=29, text_padding=0,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=self.on_options_button
+            )
+            self.options_button.pack(anchor=tk.CENTER, pady=(20, 0))
+            self.widgets.append(self.options_button)
+
+            self.leave_game_button = RoundedButton(
+                self.canvas, text="LEAVE GAME", font=("Poppins Bold", 15, "bold"),
+                width=300, height=50, radius=29, text_padding=0,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_warn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_warn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=self.on_leave_game_button
+            )
+            self.leave_game_button.pack(anchor=tk.CENTER, pady=(20, 20))
+            self.widgets.append(self.leave_game_button)
+
+            self.song_info_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
+            self.song_info_canvas.pack(side=tk.BOTTOM, anchor="e")
+            self.widgets.append(self.song_info_canvas)
+
+            self.song_info_row3_canvas = tk.Canvas(self.song_info_canvas, borderwidth=0, highlightthickness=0, bg="#d9d9d9")
+            self.song_info_row3_canvas.pack(side=tk.BOTTOM, anchor="e")
+            self.widgets.append(self.song_info_row3_canvas)
+
+            self.playing_song_label = tk.Label(self.song_info_row3_canvas, text="Song name - Song Author", font=("Poppins Regular", 12), bg="#d9d9d9")
+            self.playing_song_label.pack(anchor="center", side=tk.RIGHT)
+
+            self.skip_button = RoundedButton(
+                self.song_info_row3_canvas, font=("", 0, ""),
+                width=42, height=42, radius=0, text_padding=0,
+                image=ImageTk.PhotoImage(Image.open("assets/icons/skip.png").convert("RGBA").resize((25, 25))),
+                button_background="#737373", button_foreground="#000000",
+                button_hover_background="#8c8c8c", button_hover_foreground="#000000",
+                button_press_background="#3f3f3f", button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=None
+            )
+            self.skip_button.pack(side=tk.RIGHT)
+            self.skip_button.generate_button()
+
+            self.skip_label = tk.Label(self.song_info_row3_canvas, text="Skip", font=("Poppins Regular", 12))
+            self.skip_label.pack(anchor="center", side=tk.RIGHT, padx=(0, 5))
+            self.widgets.append(self.skip_label)
+
+            self.song_info_row2_canvas = tk.Canvas(self.song_info_canvas, borderwidth=0, highlightthickness=0, bg="#d9d9d9")
+            self.song_info_row2_canvas.pack(side=tk.BOTTOM, anchor="e")
+            self.widgets.append(self.song_info_row2_canvas)
+
+            self.hide_button = RoundedButton(
+                self.song_info_row2_canvas, font=("", 0, ""),
+                width=42, height=42, radius=0, text_padding=0,
+                image=ImageTk.PhotoImage(Image.open("assets/icons/hide.png").convert("RGBA").resize((25, 25))),
+                button_background="#765b5b", button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_warn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_warn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=None
+            )
+            self.hide_button.pack(side=tk.RIGHT)
+            self.hide_button.generate_button()
+
+            self.hide_label = tk.Label(self.song_info_row2_canvas, text="Hide Song Permanently", font=("Poppins Regular", 10))
+            self.hide_label.pack(anchor="center", side=tk.RIGHT, padx=(0, 5))
+            self.widgets.append(self.hide_label)
+
+            self.song_info_row1_canvas = tk.Canvas(self.song_info_canvas, borderwidth=0, highlightthickness=0, bg="#d9d9d9")
+            self.song_info_row1_canvas.pack(side=tk.BOTTOM, anchor="e")
+            self.widgets.append(self.song_info_row1_canvas)
+
+            self.mute_button = RoundedButton(
+                self.song_info_row1_canvas, font=("", 0, ""),
+                width=42, height=42, radius=0, text_padding=0,
+                image=ImageTk.PhotoImage(Image.open("assets/icons/mute.png").convert("RGBA").resize((25, 25))),
+                button_background="#737373", button_foreground="#000000",
+                button_hover_background="#8c8c8c", button_hover_foreground="#000000",
+                button_press_background="#3f3f3f", button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=None
+            )
+            self.mute_button.pack(side=tk.RIGHT)
+            self.mute_button.generate_button()
+
+            self.mute_label = tk.Label(self.song_info_row1_canvas, text="Mute", font=("Poppins Regular", 12))
+            self.mute_label.pack(anchor="center", side=tk.RIGHT, padx=(0, 5))
+            self.widgets.append(self.mute_label)
+
+            self.finish_init()
+
+        def on_unpause_button(self):
+            self.app.finish_overlaying_screen(self.get())
+            del self
+
+        def on_options_button(self):
+            self.canvas.pack_forget()
+            self.app.show_overlaying_screen(Screens.SettingsMenu(self.root, self.app, self).get())
+            del self
+
+        def on_leave_game_button(self):
+            self.app.finish_overlaying_screen(self.get())
+            self.app.show_screen(Screens.GameSelection(self.root, self.app).get())
+            del self
+
 
 class Games:
     class MatchingTiles(BaseScreen):
         def __init__(self, root: tk.Tk, app: RecollectApp, difficulty: str):
             super().__init__(root, app, False, False)  # Implements all variables and function from base class "BaseScreen"
 
+            self.game = "Matching Tiles"
+            self.difficulty = difficulty
             print(f"Started Matching Tiles game with difficulty {difficulty}")
 
             self.canvas.config(bg=self.app.theme_data['accent'])
@@ -959,11 +1123,14 @@ class Games:
                 button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
                 button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
-                command=None
+                command=self.on_pause
             )
             self.pause_button.pack(anchor="ne", pady=(0, 0), side=tk.RIGHT)
 
             self.finish_init()
+
+        def on_pause(self):
+            self.app.show_overlaying_screen(Screens.PauseMenu(self.root, self.app, self.game, self.difficulty).get())
 
 
 class RoundedButton(tk.Canvas):
