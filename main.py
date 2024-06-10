@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import time
 import tkinter as tk
 import tkinter.font as tk_font
 
@@ -28,6 +29,8 @@ class RecollectApp:
                 "img_bg": "background.png",
                 "img_blob": "blob.png",
                 "accent": "#53B0C8",
+                "accent1": "#5DE6CD",
+                "accent2": "#306BBB",
                 "text": "black",
                 "outline": "black",
                 "btn_bg": "#5F7BF8",
@@ -40,6 +43,8 @@ class RecollectApp:
                 "img_bg": "background_crimson.png",
                 "img_blob": "blob_crimson.png",
                 "accent": "#C85053",
+                "accent1": "#FF3F3F",
+                "accent2": "#FF7F7F",
                 "text": "black",
                 "outline": "black",
                 "btn_bg": "#F85F7B",
@@ -661,7 +666,7 @@ class Screens:
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=lambda: self.on_difficulty_select("easy")
             )
-            self.difficulty_button.on_regen = lambda: self.after_difficulty_button(self.difficulty_button, "Easy", "Match simple images of random categories\nEnhances memory")
+            self.difficulty_button.on_regen = lambda: self.after_difficulty_button(self.difficulty_button, "Easy", "Match simple images of random categories\nEnhances memory (1x)")
             self.difficulty_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
             self.difficulty_button.on_regen()
 
@@ -675,7 +680,7 @@ class Screens:
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=lambda: self.on_difficulty_select("normal")
             )
-            self.difficulty_button.on_regen = lambda: self.after_difficulty_button(self.difficulty_button, "Normal", "Match images of the same category\nEnhances memory")
+            self.difficulty_button.on_regen = lambda: self.after_difficulty_button(self.difficulty_button, "Normal", "Match images of the same category\nEnhances memory (2x)")
             self.difficulty_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
             self.difficulty_button.on_regen()
 
@@ -689,7 +694,7 @@ class Screens:
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=lambda: self.on_difficulty_select("hard")
             )
-            self.difficulty_button.on_regen = lambda: self.after_difficulty_button(self.difficulty_button, "Hard", "Match the answer to simple math problems\nEnhances math and memory")
+            self.difficulty_button.on_regen = lambda: self.after_difficulty_button(self.difficulty_button, "Hard", "Match many images of the same category\nEnhances memory (4x)")
             self.difficulty_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
             self.difficulty_button.on_regen()
 
@@ -764,7 +769,7 @@ class Screens:
             self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
             self.widgets.append(self.logo_title)
 
-            if self.app.username is not None:
+            if self.app.username is not None and self.caller is not None and self.caller.__class__.__name__ != "PauseMenu":  # Don't allow sign out when in game
                 self.sign_out_button = RoundedButton(
                     self.logo_canvas, text="SIGN OUT", font=("Poppins Bold", 15, "bold"),
                     width=210, height=50, radius=29, text_padding=0,
@@ -1091,6 +1096,8 @@ class Screens:
 
         def on_unpause_button(self):
             self.app.finish_overlaying_screen(self.get())
+            if self.caller is not None:
+                self.caller.on_unpause()
             del self
 
         def on_options_button(self):
@@ -1115,8 +1122,20 @@ class Games:
 
             self.canvas.config(bg=self.app.theme_data['accent'])
 
+            self.top_bar_canvas = tk.Canvas(self.canvas, bg=self.app.theme_data['accent'], borderwidth=0, highlightthickness=0)
+            self.top_bar_canvas.pack(anchor="nw", fill="x")
+
+            self.mistakes_label = tk.Label(self.top_bar_canvas, text="Mistakes: 0", font=("Poppins Bold", 9, "bold"), bg="white")
+            self.mistakes_label.pack(anchor="center", side=tk.LEFT, padx=(7, 0))
+
+            self.moves_label = tk.Label(self.top_bar_canvas, text="Moves: 0", font=("Poppins Bold", 9, "bold"), bg="white")
+            self.moves_label.pack(anchor="center", side=tk.LEFT, padx=(5, 0))
+
+            self.time_label = tk.Label(self.top_bar_canvas, text="Time Elapsed: 00:00", font=("Poppins Bold", 9, "bold"), bg="white")
+            self.time_label.pack(anchor="center", side=tk.LEFT, padx=(5, 0))
+
             self.pause_button = RoundedButton(
-                self.canvas, font=("", 0, ""),
+                self.top_bar_canvas, font=("", 0, ""),
                 width=50, height=50, radius=0, text_padding=0,
                 image=ImageTk.PhotoImage(Image.open("assets/icons/pause.png").convert("RGBA").resize((35, 35))),
                 button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
@@ -1127,10 +1146,125 @@ class Games:
             )
             self.pause_button.pack(anchor="ne", pady=(0, 0), side=tk.RIGHT)
 
+            self.heading = tk.Label(self.canvas, text="Match pairs of the same cards", font=("Poppins Bold", 15, "bold"), bg=self.app.theme_data['accent'])
+            self.heading.pack(anchor=tk.CENTER, pady=(30, 10))
+
+            self.start_button = RoundedButton(
+                self.canvas, text="START", font=("Poppins Bold", 20, "bold"),
+                width=350, height=75, radius=29, text_padding=0,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=self.on_click_start
+            )
+            self.start_button.pack(anchor=tk.CENTER, pady=(50, 0))
+
+            self.game_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0, bg="white")
+
+            rows, columns = 4, 4
+            if difficulty == "hard":
+                rows, columns = 5, 6
+            elif difficulty == "normal":
+                columns = 5
+            self.grid = [[{} for _ in range(columns)] for _ in range(rows)]
+
+            for row in range(len(self.grid)):
+                for col in range(len(self.grid[row])):
+                    self.card_button = RoundedButton(
+                        self.game_canvas, text="", font=("Poppins Regular", 1),
+                        width=80, height=80, radius=29, text_padding=0,
+                        button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                        button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                        button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                        outline_colour=self.app.theme_data['outline'], outline_width=1,
+                        command=lambda r=row, c=col: self.on_click_card(r, c)
+                    )
+                    self.card_button.grid(row=row, column=col, padx=(5, (5 if col == columns - 1 else 0)), pady=(5, (5 if row == rows - 1 else 0)))
+                    self.grid[row][col]['button'] = self.card_button
+                    self.grid[row][col]['revealed'] = False
+
+            self.selected_grids = []
+            self.grid_clickable = False
+            self.moves = 0
+            self.mistakes = 0
+
+            self.time_elapsed = []
+            self.last_start_time = 0
+            self.schedule_time_update_id = None
+
             self.finish_init()
 
         def on_pause(self):
-            self.app.show_overlaying_screen(Screens.PauseMenu(self.root, self.app, self.game, self.difficulty).get())
+            self.time_elapsed.append(time.time() - self.last_start_time)
+            self.game_canvas.after_cancel(self.schedule_time_update_id)
+            self.app.show_overlaying_screen(Screens.PauseMenu(self.root, self.app, self.game, self.difficulty, self).get())
+
+        def on_unpause(self):
+            self.last_start_time = time.time()
+            self.update_time()
+
+        def on_click_start(self):
+            self.heading.destroy()
+            self.start_button.destroy()
+            self.game_canvas.pack(anchor="center", pady=(30, 0), expand=True)
+            self.grid_clickable = True
+
+            self.last_start_time = time.time()
+            self.update_time()
+
+        def update_time(self):
+            seconds_taken = sum(self.time_elapsed) + (time.time() - self.last_start_time)
+            if seconds_taken < 3600:
+                time_taken = time.strftime("%M:%S", time.gmtime(seconds_taken))
+            else:
+                time_taken = time.strftime("%H:%M:%S", time.gmtime(seconds_taken))
+            self.time_label.config(text=f"Time Elapsed: {time_taken}")
+
+            if self.schedule_time_update_id is not None:
+                self.game_canvas.after_cancel(self.schedule_time_update_id)
+            self.schedule_time_update_id = self.game_canvas.after(100, self.update_time)
+
+        def on_click_card(self, row, col):
+            if self.grid_clickable is False:
+                return
+
+            grid_num = (row, col)
+            if grid_num in self.selected_grids:
+                self.selected_grids.remove(grid_num)
+                self.change_grid_button_bg(row, col, "btn_bg", "btn_hvr")
+                return
+
+            self.selected_grids.append(grid_num)
+            self.change_grid_button_bg(row, col, "btn_prs", "btn_prs")
+            if len(self.selected_grids) == 2:
+                self.moves += 1
+                self.moves_label.config(text=f"Moves: {self.moves}")
+
+                self.check_selected_cards()
+
+        def change_grid_button_bg(self, row, col, bg, hover_bg):
+            self.grid[row][col]['button'].button_background = self.app.theme_data[bg]
+            self.grid[row][col]['button'].button_hover_background = self.app.theme_data[hover_bg]
+            self.grid[row][col]['button'].generate_button()
+
+        def check_selected_cards(self):
+            # self.grid_clickable = False
+            row, col = self.selected_grids[0]
+            row2, col2 = self.selected_grids[1]
+
+            self.change_grid_button_bg(row, col, "btn_bg", "btn_hvr")
+            self.change_grid_button_bg(row2, col2, "btn_bg", "btn_hvr")
+            # check then schedule hide and make clickable
+
+            if self.grid[row][col]['revealed'] and self.grid[row2][col2]['revealed']:
+                # If incorrect then:
+                self.mistakes += 1
+                self.mistakes_label.config(text=f"Mistakes: {self.mistakes}")
+
+            self.grid[row][col]['revealed'] = True
+            self.grid[row2][col2]['revealed'] = True
+            self.selected_grids.clear()
 
 
 class RoundedButton(tk.Canvas):
