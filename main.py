@@ -1,13 +1,14 @@
 import hashlib
 import json
 import os
+import random
 import time
 import tkinter as tk
 import tkinter.font as tk_font
 
 import psutil  # for memory usage only - pip install psutil
 import pyglet  # pip install pyglet
-from PIL import Image, ImageTk, ImageDraw  # pip install pillow
+from PIL import Image, ImageTk, ImageDraw, ImageOps  # pip install pillow
 
 
 def get_memory():
@@ -1167,12 +1168,30 @@ class Games:
                 rows, columns = 5, 6
             elif difficulty == "normal":
                 columns = 5
+            total_squares = rows * columns
             self.grid = [[{} for _ in range(columns)] for _ in range(rows)]
+
+            self.list_of_photos = []
+            for folder in os.listdir("assets/matching_tiles"):  # Looks for folders in matching_tiles
+                if os.path.isdir(f"assets/matching_tiles/{folder}"):  # Ensures item is a folder
+                    # Add each item with path to list_of_photos
+                    self.list_of_photos.extend([f"assets/matching_tiles/{folder}/{filename}" for filename in os.listdir(f"assets/matching_tiles/{folder}")])
+            # Checks if file has ".png"
+            for file in self.list_of_photos:
+                if ".png" not in file:
+                    self.list_of_photos.remove(file)
+
+            random.shuffle(self.list_of_photos)  # Shuffles all photos
+            self.list_of_photos = self.list_of_photos[0:total_squares//2]  # Cuts list to number of squares divided by 2 (round down)
+            self.list_of_photos.extend(self.list_of_photos)  # Duplicates list, so there is pairs of each
+            random.shuffle(self.list_of_photos)  # Shuffles all photos
+            print(self.list_of_photos)
 
             for row in range(len(self.grid)):
                 for col in range(len(self.grid[row])):
+
                     self.card_button = RoundedButton(
-                        self.game_canvas, text="", font=("Poppins Regular", 1),
+                        self.game_canvas, font=("", 0, ""),
                         width=80, height=80, radius=29, text_padding=0,
                         button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
                         button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
@@ -1183,11 +1202,20 @@ class Games:
                     self.card_button.grid(row=row, column=col, padx=(5, (5 if col == columns - 1 else 0)), pady=(5, (5 if row == rows - 1 else 0)))
                     self.grid[row][col]['button'] = self.card_button
                     self.grid[row][col]['revealed'] = False
+                    self.grid[row][col]['found'] = False
+                    try:
+                        self.grid[row][col]['image'] = self.list_of_photos.pop(0)
+                    except IndexError:  # In case there is not enough images for squares
+                        # No image, no callback (disable button), and made already found
+                        self.grid[row][col]['image'] = None
+                        self.grid[row][col]['button'].command = None
+                        self.grid[row][col]['found'] = True
+                        self.change_grid_button_bg(row, col, "#6f727b", "#6f727b", "#6f727b")
 
             self.selected_grids = []
-            self.grid_clickable = False
             self.moves = 0
             self.mistakes = 0
+            self.game_started = False
 
             self.time_elapsed = []
             self.last_start_time = 0
@@ -1196,19 +1224,22 @@ class Games:
             self.finish_init()
 
         def on_pause(self):
-            self.time_elapsed.append(time.time() - self.last_start_time)
-            self.game_canvas.after_cancel(self.schedule_time_update_id)
+            if self.game_started is True:
+                self.time_elapsed.append(time.time() - self.last_start_time)
+                if self.schedule_time_update_id is not None:
+                    self.game_canvas.after_cancel(self.schedule_time_update_id)
             self.app.show_overlaying_screen(Screens.PauseMenu(self.root, self.app, self.game, self.difficulty, self).get())
 
         def on_unpause(self):
-            self.last_start_time = time.time()
-            self.update_time()
+            if self.game_started is True:
+                self.last_start_time = time.time()
+                self.update_time()
 
         def on_click_start(self):
+            self.game_started = True
             self.heading.destroy()
             self.start_button.destroy()
             self.game_canvas.pack(anchor="center", pady=(30, 0), expand=True)
-            self.grid_clickable = True
 
             self.last_start_time = time.time()
             self.update_time()
@@ -1226,45 +1257,90 @@ class Games:
             self.schedule_time_update_id = self.game_canvas.after(100, self.update_time)
 
         def on_click_card(self, row, col):
-            if self.grid_clickable is False:
-                return
-
             grid_num = (row, col)
             if grid_num in self.selected_grids:
                 self.selected_grids.remove(grid_num)
-                self.change_grid_button_bg(row, col, "btn_bg", "btn_hvr")
+                self.change_grid_button_bg(row, col, self.app.theme_data['btn_bg'], self.app.theme_data['btn_hvr'], self.app.theme_data['btn_prs'])
                 return
 
             self.selected_grids.append(grid_num)
-            self.change_grid_button_bg(row, col, "btn_prs", "btn_prs")
+            self.change_grid_button_bg(row, col, self.app.theme_data['btn_prs'], self.app.theme_data['btn_prs'], self.app.theme_data['btn_hvr'])  # Makes button appear selected
             if len(self.selected_grids) == 2:
                 self.moves += 1
                 self.moves_label.config(text=f"Moves: {self.moves}")
 
                 self.check_selected_cards()
 
-        def change_grid_button_bg(self, row, col, bg, hover_bg):
-            self.grid[row][col]['button'].button_background = self.app.theme_data[bg]
-            self.grid[row][col]['button'].button_hover_background = self.app.theme_data[hover_bg]
+        def change_grid_button_bg(self, row, col, bg, hover_bg, press_bg):
+            self.grid[row][col]['button'].button_background = bg
+            self.grid[row][col]['button'].button_hover_background = hover_bg
+            self.grid[row][col]['button'].button_press_background = press_bg
             self.grid[row][col]['button'].generate_button()
 
         def check_selected_cards(self):
-            # self.grid_clickable = False
             row, col = self.selected_grids[0]
             row2, col2 = self.selected_grids[1]
+            self.selected_grids.clear()
 
-            self.change_grid_button_bg(row, col, "btn_bg", "btn_hvr")
-            self.change_grid_button_bg(row2, col2, "btn_bg", "btn_hvr")
-            # check then schedule hide and make clickable
+            self.grid[row][col]['button'].image = ImageTk.PhotoImage(ImageOps.contain(Image.open(self.grid[row][col]['image']).convert("RGBA"), (70, 70)))
+            self.grid[row][col]['button'].generate_button()
+            self.grid[row2][col2]['button'].image = ImageTk.PhotoImage(ImageOps.contain(Image.open(self.grid[row2][col2]['image']).convert("RGBA"), (70, 70)))
+            self.grid[row2][col2]['button'].generate_button()
 
-            if self.grid[row][col]['revealed'] and self.grid[row2][col2]['revealed']:
-                # If incorrect then:
-                self.mistakes += 1
-                self.mistakes_label.config(text=f"Mistakes: {self.mistakes}")
+            correct = False
+
+            # Correct
+            if self.grid[row][col]['image'] == self.grid[row2][col2]['image']:
+                correct = True
+                self.grid[row][col]['found'] = True
+                self.grid[row2][col2]['found'] = True
+                # Removes click option
+                self.grid[row][col]['button'].command = None
+                self.grid[row2][col2]['button'].command = None
+                # Makes all options of button background green
+                self.change_grid_button_bg(row, col, "#61a252", "#61a252", "#61a252")
+                self.change_grid_button_bg(row2, col2, "#61a252", "#61a252", "#61a252")
+
+            # Incorrect
+            else:
+                # Makes background red
+                self.change_grid_button_bg(row, col, "#ff7f7f", "#ff7f7f", "#ff7f7f")
+                self.change_grid_button_bg(row2, col2, "#ff7f7f", "#ff7f7f", "#ff7f7f")
+
+                if self.grid[row][col]['revealed'] and self.grid[row2][col2]['revealed']:
+                    self.mistakes += 1
+                    self.mistakes_label.config(text=f"Mistakes: {self.mistakes}")
 
             self.grid[row][col]['revealed'] = True
             self.grid[row2][col2]['revealed'] = True
-            self.selected_grids.clear()
+
+            self.game_canvas.after(750, lambda: self.hide_selected_cards(correct, (row, col), (row2, col2)))
+
+        def hide_selected_cards(self, correct, grid1, grid2):
+            row, col = grid1
+            row2, col2 = grid2
+
+            self.grid[row][col]['button'].image = None
+            self.grid[row2][col2]['button'].image = None
+            if correct is False:
+                self.change_grid_button_bg(row, col, self.app.theme_data['btn_bg'], self.app.theme_data['btn_hvr'], self.app.theme_data['btn_prs'])
+                self.change_grid_button_bg(row2, col2, self.app.theme_data['btn_bg'], self.app.theme_data['btn_hvr'], self.app.theme_data['btn_prs'])
+
+            completed = True
+            for grid_row in self.grid:
+                for grid_data in grid_row:
+                    if grid_data['found'] is False:
+                        completed = False
+                        break
+                if not completed:
+                    break
+
+            if completed:
+                self.game_started = False
+                self.time_elapsed.append(time.time() - self.last_start_time)
+                if self.schedule_time_update_id is not None:
+                    self.game_canvas.after_cancel(self.schedule_time_update_id)
+                self.game_canvas.destroy()
 
 
 class RoundedButton(tk.Canvas):
@@ -1344,6 +1420,8 @@ class RoundedButton(tk.Canvas):
             self.coords(self.button_obj, points)
 
     def generate_button(self):
+        self.delete("button")  # Deletes existing button to regenerate
+
         self.button_obj = self.round_rectangle(
             0, 0, 0, 0, tags="button",
             radius=self.radius, fill=self.button_background,
