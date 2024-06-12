@@ -1,5 +1,6 @@
 import hashlib
 import json
+import math
 import os
 import random
 import time
@@ -1117,6 +1118,8 @@ class Games:
         def __init__(self, root: tk.Tk, app: RecollectApp, difficulty: str):
             super().__init__(root, app, False, False)  # Implements all variables and function from base class "BaseScreen"
 
+            # Regex for png files: .*(?=\.png)
+
             self.game = "Matching Tiles"
             self.difficulty = difficulty
             print(f"Started Matching Tiles game with difficulty {difficulty}")
@@ -1126,11 +1129,11 @@ class Games:
             self.top_bar_canvas = tk.Canvas(self.canvas, bg=self.app.theme_data['accent'], borderwidth=0, highlightthickness=0)
             self.top_bar_canvas.pack(anchor="nw", fill="x")
 
-            self.mistakes_label = tk.Label(self.top_bar_canvas, text="Mistakes: 0", font=("Poppins Bold", 9, "bold"), bg="white")
-            self.mistakes_label.pack(anchor="center", side=tk.LEFT, padx=(7, 0))
+            self.score_label = tk.Label(self.top_bar_canvas, text="Score: 0", font=("Poppins Bold", 9, "bold"), bg="white")
+            self.score_label.pack(anchor="center", side=tk.LEFT, padx=(7, 0))
 
-            self.moves_label = tk.Label(self.top_bar_canvas, text="Moves: 0", font=("Poppins Bold", 9, "bold"), bg="white")
-            self.moves_label.pack(anchor="center", side=tk.LEFT, padx=(5, 0))
+            self.mistakes_label = tk.Label(self.top_bar_canvas, text="Mistakes: 0", font=("Poppins Bold", 9, "bold"), bg="white")
+            self.mistakes_label.pack(anchor="center", side=tk.LEFT, padx=(5, 0))
 
             self.time_label = tk.Label(self.top_bar_canvas, text="Time Elapsed: 00:00", font=("Poppins Bold", 9, "bold"), bg="white")
             self.time_label.pack(anchor="center", side=tk.LEFT, padx=(5, 0))
@@ -1172,20 +1175,28 @@ class Games:
             self.grid = [[{} for _ in range(columns)] for _ in range(rows)]
 
             self.list_of_photos = []
+            selected_folder = []
             for folder in os.listdir("assets/matching_tiles"):  # Looks for folders in matching_tiles
                 if os.path.isdir(f"assets/matching_tiles/{folder}"):  # Ensures item is a folder
-                    # Add each item with path to list_of_photos
-                    self.list_of_photos.extend([f"assets/matching_tiles/{folder}/{filename}" for filename in os.listdir(f"assets/matching_tiles/{folder}")])
+                    selected_folder.append(folder)
+
+            if self.difficulty in ["normal", "hard"]:
+                selected_folder = [random.choice(selected_folder)]  # If normal or hard, only select one category
+            print(f"Selected categories: {selected_folder}")
+
+            for folder in selected_folder:
+                # Add each item with path to list_of_photos
+                self.list_of_photos.extend([f"assets/matching_tiles/{folder}/{filename}" for filename in os.listdir(f"assets/matching_tiles/{folder}")])
+
             # Checks if file has ".png"
             for file in self.list_of_photos:
                 if ".png" not in file:
                     self.list_of_photos.remove(file)
 
             random.shuffle(self.list_of_photos)  # Shuffles all photos
-            self.list_of_photos = self.list_of_photos[0:total_squares//2]  # Cuts list to number of squares divided by 2 (round down)
+            self.list_of_photos = self.list_of_photos[:total_squares//2]  # Cuts list to number of squares divided by 2 (round down)
             self.list_of_photos.extend(self.list_of_photos)  # Duplicates list, so there is pairs of each
             random.shuffle(self.list_of_photos)  # Shuffles all photos
-            print(self.list_of_photos)
 
             for row in range(len(self.grid)):
                 for col in range(len(self.grid[row])):
@@ -1212,14 +1223,20 @@ class Games:
                         self.grid[row][col]['found'] = True
                         self.change_grid_button_bg(row, col, "#6f727b", "#6f727b", "#6f727b")
 
+            self.score = 100
+            if self.difficulty == "normal":
+                self.score = 150
+            elif self.difficulty == "hard":
+                self.score = 200
             self.selected_grids = []
-            self.moves = 0
             self.mistakes = 0
             self.game_started = False
 
             self.time_elapsed = []
             self.last_start_time = 0
             self.schedule_time_update_id = None
+
+            self.summary_canvas = None
 
             self.finish_init()
 
@@ -1252,9 +1269,20 @@ class Games:
                 time_taken = time.strftime("%H:%M:%S", time.gmtime(seconds_taken))
             self.time_label.config(text=f"Time Elapsed: {time_taken}")
 
+            self.update_score()
+
             if self.schedule_time_update_id is not None:
                 self.game_canvas.after_cancel(self.schedule_time_update_id)
             self.schedule_time_update_id = self.game_canvas.after(100, self.update_time)
+
+        def update_score(self):
+            score = self.score
+            score -= self.mistakes
+            seconds_taken = sum(self.time_elapsed) + (time.time() - self.last_start_time)
+            score -= math.floor(seconds_taken) * 0.1
+            score = max(round(score, 1), -100)  # Prevent float point arithmetic, set minimum score -100.
+            self.score_label.config(text=f"Score: {score}")
+            return score
 
         def on_click_card(self, row, col):
             grid_num = (row, col)
@@ -1266,9 +1294,6 @@ class Games:
             self.selected_grids.append(grid_num)
             self.change_grid_button_bg(row, col, self.app.theme_data['btn_prs'], self.app.theme_data['btn_prs'], self.app.theme_data['btn_hvr'])  # Makes button appear selected
             if len(self.selected_grids) == 2:
-                self.moves += 1
-                self.moves_label.config(text=f"Moves: {self.moves}")
-
                 self.check_selected_cards()
 
         def change_grid_button_bg(self, row, col, bg, hover_bg, press_bg):
@@ -1310,6 +1335,7 @@ class Games:
                 if self.grid[row][col]['revealed'] and self.grid[row2][col2]['revealed']:
                     self.mistakes += 1
                     self.mistakes_label.config(text=f"Mistakes: {self.mistakes}")
+                    self.update_score()
 
             self.grid[row][col]['revealed'] = True
             self.grid[row2][col2]['revealed'] = True
@@ -1336,11 +1362,19 @@ class Games:
                     break
 
             if completed:
-                self.game_started = False
-                self.time_elapsed.append(time.time() - self.last_start_time)
-                if self.schedule_time_update_id is not None:
-                    self.game_canvas.after_cancel(self.schedule_time_update_id)
-                self.game_canvas.destroy()
+                self.on_finish_game()
+
+        def on_finish_game(self):
+            self.game_started = False
+            self.time_elapsed.append(time.time() - self.last_start_time)
+            if self.schedule_time_update_id is not None:
+                self.game_canvas.after_cancel(self.schedule_time_update_id)
+            self.game_canvas.destroy()
+
+            self.summary_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0, bg="white")
+            self.summary_canvas.pack(anchor="center", pady=(30, 0), expand=True)
+
+            print(self.score)
 
 
 class RoundedButton(tk.Canvas):
