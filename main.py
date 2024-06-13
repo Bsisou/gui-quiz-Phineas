@@ -1175,12 +1175,12 @@ class Games:
             self.grid = [[{} for _ in range(columns)] for _ in range(rows)]
 
             self.list_of_photos = []
-            selected_folder = []
-            for folder in os.listdir("assets/matching_tiles"):  # Looks for folders in matching_tiles
-                if os.path.isdir(f"assets/matching_tiles/{folder}"):  # Ensures item is a folder
-                    selected_folder.append(folder)
-
-            if self.difficulty in ["normal", "hard"]:
+            selected_folder = [
+                folder
+                for folder in os.listdir("assets/matching_tiles")
+                if os.path.isdir(f"assets/matching_tiles/{folder}")
+            ]
+            if self.difficulty in {"normal", "hard"}:
                 selected_folder = [random.choice(selected_folder)]  # If normal or hard, only select one category
             print(f"Selected categories: {selected_folder}")
 
@@ -1200,7 +1200,6 @@ class Games:
 
             for row in range(len(self.grid)):
                 for col in range(len(self.grid[row])):
-
                     self.card_button = RoundedButton(
                         self.game_canvas, font=("", 0, ""),
                         width=80, height=80, radius=29, text_padding=0,
@@ -1224,10 +1223,10 @@ class Games:
                         self.change_grid_button_bg(row, col, "#6f727b", "#6f727b", "#6f727b")
 
             self.score = 100
-            if self.difficulty == "normal":
-                self.score = 150
-            elif self.difficulty == "hard":
+            if self.difficulty == "hard":
                 self.score = 200
+            elif self.difficulty == "normal":
+                self.score = 150
             self.selected_grids = []
             self.mistakes = 0
             self.game_started = False
@@ -1236,7 +1235,7 @@ class Games:
             self.last_start_time = 0
             self.schedule_time_update_id = None
 
-            self.summary_canvas = None
+            self.summary_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0, bg="white")
 
             self.finish_init()
 
@@ -1371,10 +1370,57 @@ class Games:
                 self.game_canvas.after_cancel(self.schedule_time_update_id)
             self.game_canvas.destroy()
 
-            self.summary_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0, bg="white")
-            self.summary_canvas.pack(anchor="center", pady=(30, 0), expand=True)
+            self.score_label.destroy()
+            self.mistakes_label.destroy()
+            self.time_label.destroy()
 
-            print(self.score)
+            self.summary_canvas.pack(anchor="center", expand=True)
+
+            underline_font = tk_font.Font(family="Poppins Regular", size=13, weight="normal")
+            underline_font.configure(underline=True)
+
+            tk.Label(self.summary_canvas, text="Game Completed", font=("Poppins Bold", 15, "bold"), bg="white").pack(anchor=tk.CENTER, pady=(10, 10))
+
+            score = self.score
+            score_canvas = tk.Canvas(self.summary_canvas, borderwidth=0, highlightthickness=0, bg="white")
+            score_canvas.pack(expand=True)
+
+            tk.Label(score_canvas, text="Base Score", font=("Poppins Regular", 13), bg="white").grid(row=0, column=0, sticky="W", padx=(5, 30), pady=(5, 0))
+            tk.Label(score_canvas, text=score, font=("Poppins Regular", 13), bg="white").grid(row=0, column=1, sticky="W", padx=(0, 5), pady=(5, 0))
+
+            score -= self.mistakes
+            tk.Label(score_canvas, text=f"Mistakes: {self.mistakes}", font=("Poppins Regular", 13), bg="white").grid(row=1, column=0, sticky="W", padx=(5, 30))
+            tk.Label(score_canvas, text=f"-{self.mistakes}", font=("Poppins Regular", 13), fg="red", bg="white").grid(row=1, column=1, sticky="W", padx=(0, 5))
+
+            seconds_taken = round(sum(self.time_elapsed))
+            score_difference = round(math.floor(seconds_taken) * 0.1, 1)
+            score -= score_difference
+            score = max(round(score, 1), -100)  # Prevent float point arithmetic, set minimum score -100.
+            tk.Label(score_canvas, text=f"Time taken: {seconds_taken}s", font=("Poppins Regular", 13), bg="white").grid(row=2, column=0, sticky="W", padx=(5, 30))
+            tk.Label(score_canvas, text=f"-{score_difference} {'(minimum -100 score)' if score == -100 else ''}", font=underline_font, fg="red", bg="white").grid(row=2, column=1, sticky="W", padx=(0, 5))
+
+            tk.Label(score_canvas, text="Game Score", font=("Poppins Bold", 13, "bold"), bg="white").grid(row=3, column=0, sticky="W", padx=(5, 30))
+            tk.Label(score_canvas, text=score, font=("Poppins Regular", 13), bg="white").grid(row=3, column=1, sticky="W", padx=(0, 5))
+
+            tk.Label(score_canvas, text="Account Score", font=("Poppins Bold", 13, "bold"), bg="white").grid(row=4, column=0, sticky="W", padx=(5, 30), pady=(15, 0))
+            tk.Label(score_canvas, text="None", font=("Poppins Bold", 13, "bold"), bg="white").grid(row=4, column=1, sticky="W", padx=(0, 5), pady=(15, 0))
+
+            tk.Canvas(self.summary_canvas, borderwidth=0, highlightthickness=0, bg="black", height=1).pack(fill="x")
+
+            leave_game_button = RoundedButton(
+                self.summary_canvas, text="LEAVE GAME", font=("Poppins Bold", 15, "bold"),
+                width=300, height=50, radius=29, text_padding=0,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_warn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_warn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=self.on_leave_game_button
+            )
+            leave_game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(20, 10))
+
+        def on_leave_game_button(self):
+            self.app.show_screen(Screens.GameSelection(self.root, self.app).get())
+            del self
 
 
 class RoundedButton(tk.Canvas):
