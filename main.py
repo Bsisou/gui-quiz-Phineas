@@ -151,6 +151,56 @@ class RecollectApp:
             data_file.truncate()
             json.dump(data, data_file, indent=2)
 
+    def get_game_data(self, username, game):
+        user_data = self.get_user_data(username)
+        if user_data is None:
+            return  # Cannot save score as not logged in, should not happen
+
+        # Create empty dicts if empty
+        if "game_data" not in list(user_data.keys()):
+            user_data['game_data'] = {}
+        if game not in list(user_data['game_data'].keys()):
+            user_data['game_data'][game] = {}
+
+        return user_data['game_data'][game]
+
+    def change_game_user_data(self, username, game, game_data, difficulty, score):
+        user_data = self.get_user_data(username)
+        if user_data is None:
+            return  # Cannot save score as not logged in, should not happen
+
+        # Make overall score if empty
+        if "overall_score" not in list(user_data.keys()):
+            user_data['overall_score'] = 0
+        original_overall_score = user_data['overall_score']
+        # Get score relative to "easy mode", since user may be penalised for playing easy mode after hard.
+        relative_score = score
+        if difficulty == "hard":
+            relative_score = score / 4  # Hard should be 4 times harder than easy
+        elif difficulty == "normal":
+            relative_score = score / 2  # Normal should be 2 times harder than easy
+        # Change overall score based on 2 curves
+        difference = relative_score - original_overall_score
+        print(f"Difference in scores: {difference}")
+        if difference < 0:  # If score is worse
+            overall_change = round(0.25 * difference, 1)  # Use curve y=0.25x for loss
+        else:  # If score is better
+            overall_change = round(0.5 * difference, 1)  # Use curve y=0.5x for gain
+        print(f"Change of {overall_change} score")
+        user_data['overall_score'] = round(user_data['overall_score'] + overall_change, 1)
+
+        # Create empty game_data dicts if empty
+        if "game_data" not in list(user_data.keys()):
+            user_data['game_data'] = {}
+        if game not in list(user_data['game_data'].keys()):
+            user_data['game_data'][game] = {}
+        # Write game data
+        user_data['game_data'][game] = game_data
+
+        self.rewrite_user_data(username, user_data)
+
+        return overall_change, original_overall_score, user_data['overall_score']
+
     def show_screen(self, screen: tk.Canvas):
         if self.current_screen is not None:
             self.current_screen.pack_forget()
@@ -1402,11 +1452,30 @@ class Games:
             tk.Label(score_canvas, text=f"Time taken: {time_taken}", font=("Poppins Regular", 13), bg="white").grid(row=2, column=0, sticky="W", padx=(5, 30))
             tk.Label(score_canvas, text=f"-{score_difference} {'(minimum -100 score)' if score == -100 else ''}", font=underline_font, fg="red", bg="white").grid(row=2, column=1, sticky="W", padx=(0, 5))
 
-            tk.Label(score_canvas, text="Game Score", font=("Poppins Bold", 13, "bold"), bg="white").grid(row=3, column=0, sticky="W", padx=(5, 30))
-            tk.Label(score_canvas, text=score, font=("Poppins Regular", 13), bg="white").grid(row=3, column=1, sticky="W", padx=(0, 5))
+            # Change account data scores
+            user_data = self.app.get_user_data(self.app.username)
+            if user_data is None:
+                return
+            game_data = self.app.get_game_data(self.app.username, self.game)
+            if f"record_score_{self.difficulty}" not in list(game_data.keys()):
+                game_data[f'record_score_{self.difficulty}'] = score
+                new_record = True
+            else:
+                new_record = score > game_data[f'record_score_{self.difficulty}']
+                game_data[f'record_score_{self.difficulty}'] = max(score, game_data[f'record_score_{self.difficulty}'])
+            overall_change, original_overall_score, new_overall_score = self.app.change_game_user_data(self.app.username, self.game, game_data, self.difficulty, score)
 
-            tk.Label(score_canvas, text="Account Score", font=("Poppins Bold", 13, "bold"), bg="white").grid(row=4, column=0, sticky="W", padx=(5, 30), pady=(15, 0))
-            tk.Label(score_canvas, text="None", font=("Poppins Bold", 13, "bold"), bg="white").grid(row=4, column=1, sticky="W", padx=(0, 5), pady=(15, 0))
+            tk.Label(score_canvas, text="Game Score", font=("Poppins Regular", 13), bg="white").grid(row=3, column=0, sticky="W", padx=(5, 30))
+            tk.Label(score_canvas, text=f"{score}{' (New Record!)' if new_record else ''}", font=("Poppins Regular", 13), bg="white").grid(row=3, column=1, sticky="W", padx=(0, 5))
+
+            tk.Label(score_canvas, text="Account Score", font=("Poppins Regular", 13), bg="white").grid(row=4, column=0, sticky="W", padx=(5, 30), pady=(15, 0))
+            tk.Label(score_canvas, text=original_overall_score, font=("Poppins Regular", 13), bg="white").grid(row=4, column=1, sticky="W", padx=(0, 5), pady=(15, 0))
+
+            tk.Label(score_canvas, text="Adjustment", font=("Poppins Regular", 13), bg="white").grid(row=5, column=0, sticky="W", padx=(5, 30))
+            tk.Label(score_canvas, text=overall_change, font=underline_font, fg="red" if overall_change < 0 else "green", bg="white").grid(row=5, column=1, sticky="W", padx=(0, 5))
+
+            tk.Label(score_canvas, text="New Account Score", font=("Poppins Bold", 13, "bold"), bg="white").grid(row=6, column=0, sticky="W", padx=(5, 30), pady=(5, 0))
+            tk.Label(score_canvas, text=new_overall_score, font=("Poppins Bold", 13, "bold"), bg="white").grid(row=6, column=1, sticky="W", padx=(0, 5), pady=(5, 0))
 
             tk.Canvas(summary_canvas, borderwidth=0, highlightthickness=0, bg="black", height=1).pack(fill="x")
 
