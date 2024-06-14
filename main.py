@@ -133,12 +133,7 @@ class RecollectApp:
                 "theme": self.theme
             }
         }
-        with open("data.json", "r+") as data_file:
-            data = json.load(data_file)
-            data['users'][username] = user_data
-            data_file.seek(0)
-            data_file.truncate()
-            json.dump(data, data_file, indent=2)
+        self.rewrite_user_data(username, user_data)
         return user_data
 
     def rewrite_user_data(self, username, user_data):
@@ -468,12 +463,14 @@ class Screens:
             self.username_entry.pack(anchor=tk.CENTER, pady=(5, 5))
             self.username_entry.bind("<FocusIn>", lambda event: self.on_focusin_entry(self.username_entry, "Username"))
             self.username_entry.bind("<FocusOut>", lambda event: self.on_focusout_entry(self.username_entry, "Username"))
+            self.username_entry.bind("<Return>", lambda event: self.password_entry.focus())
             self.on_focusout_entry(self.username_entry, "Username")
 
             self.password_entry = tk.Entry(self.canvas, font=("Poppins Regular", 11), width=25)
             self.password_entry.pack(anchor=tk.CENTER, pady=(5, 5))
             self.password_entry.bind("<FocusIn>", lambda event: self.on_focusin_entry(self.password_entry, "Password"))
             self.password_entry.bind("<FocusOut>", lambda event: self.on_focusout_entry(self.password_entry, "Password"))
+            self.password_entry.bind("<Return>", self.on_sign_in)
             self.on_focusout_entry(self.password_entry, "Password")
 
             self.error_message = tk.Label(self.canvas, text="", font=("Poppins Regular", 9), fg="red")
@@ -534,7 +531,7 @@ class Screens:
 
             return True
 
-        def on_sign_in(self):
+        def on_sign_in(self, _=None):
             self.error_message.config(text="", image="")
             self.root.focus()  # Unselects entry boxes
 
@@ -1214,16 +1211,32 @@ class Games:
             )
             self.start_button.pack(anchor=tk.CENTER, pady=(50, 0))
 
-            self.game_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0, bg="white")
-
             rows, columns = 4, 4
-            if difficulty == "hard":
+            if self.difficulty == "hard":
                 rows, columns = 5, 6
-            elif difficulty == "normal":
+            elif self.difficulty == "normal":
                 columns = 5
-            total_squares = rows * columns
             self.grid = [[{} for _ in range(columns)] for _ in range(rows)]
 
+            self.game_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0, bg="white")
+            self.create_grid(rows, columns)
+
+            self.base_score = 50
+            if self.difficulty == "hard":
+                self.base_score = 200
+            elif self.difficulty == "normal":
+                self.base_score = 100
+            self.selected_grids = []
+            self.mistakes = 0
+            self.game_started = False
+
+            self.time_elapsed = []
+            self.last_start_time = 0
+            self.schedule_time_update_id = None
+
+            self.finish_init()
+
+        def create_grid(self, rows, columns):
             list_of_photos = []
             selected_folder = [
                 folder
@@ -1244,7 +1257,7 @@ class Games:
                     list_of_photos.remove(file)
 
             random.shuffle(list_of_photos)  # Shuffles all photos
-            list_of_photos = list_of_photos[:total_squares//2]  # Cuts list to number of squares divided by 2 (round down)
+            list_of_photos = list_of_photos[:(rows * columns) // 2]  # Cuts list to number of squares divided by 2 (round down)
             list_of_photos.extend(list_of_photos)  # Duplicates list, so there is pairs of each
             random.shuffle(list_of_photos)  # Shuffles all photos
 
@@ -1271,21 +1284,6 @@ class Games:
                         self.grid[row][col]['button'].command = None
                         self.grid[row][col]['found'] = True
                         self.change_grid_button_bg(row, col, "#6f727b", "#6f727b", "#6f727b")
-
-            self.base_score = 50
-            if self.difficulty == "hard":
-                self.base_score = 200
-            elif self.difficulty == "normal":
-                self.base_score = 100
-            self.selected_grids = []
-            self.mistakes = 0
-            self.game_started = False
-
-            self.time_elapsed = []
-            self.last_start_time = 0
-            self.schedule_time_update_id = None
-
-            self.finish_init()
 
         def on_pause(self):
             if self.game_started is True:
@@ -1359,11 +1357,10 @@ class Games:
             self.grid[row2][col2]['button'].image = ImageTk.PhotoImage(ImageOps.contain(Image.open(self.grid[row2][col2]['image']).convert("RGBA"), (70, 70)))
             self.grid[row2][col2]['button'].generate_button()
 
-            correct = False
+            correct = self.grid[row][col]['image'] == self.grid[row2][col2]['image']
 
             # Correct
-            if self.grid[row][col]['image'] == self.grid[row2][col2]['image']:
-                correct = True
+            if correct:
                 self.grid[row][col]['found'] = True
                 self.grid[row2][col2]['found'] = True
                 # Removes click option
