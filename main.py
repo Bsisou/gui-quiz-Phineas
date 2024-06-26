@@ -12,20 +12,22 @@ import pyglet  # pip install pyglet
 from PIL import Image, ImageTk, ImageDraw, ImageOps  # pip install pillow
 
 
+# Get memory usage
 def get_memory():
     print(f"Memory usage: {psutil.Process(os.getpid()).memory_info().rss / 1e+6} MB")
 
 
 class RecollectApp:
     def __init__(self, root: tk.Tk):
+        # Set up root window
         self.root = root
         self.root.title("Recollect")
         self.root.geometry("750x563")  # Same ratio as 1000 x 750
         self.root.minsize(750, 563)
-        self.username = None
 
         self.data_file = "data.json"
 
+        # Themes
         self.themes = {
             "Fruity (Default)": {
                 "img_bg": "background.png",
@@ -57,13 +59,18 @@ class RecollectApp:
             }
         }
 
+        # Game
         self.games = {
             "Matching Tiles": Games.MatchingTiles
         }
 
+        # Options
+
+        # Volume
         self.volume = tk.IntVar(value=50)
         self.last_volume = 50
 
+        # Current theme
         self.theme = list(self.themes.keys())[0]
         self.theme_data = self.themes[self.theme]
 
@@ -81,39 +88,49 @@ class RecollectApp:
         self.defaultFont = tk_font.nametofont("TkDefaultFont")
         self.defaultFont.configure(family="Calibri")
 
+        # Screen management
         self.current_screen = None
+        # Show homepage
         self.show_screen(Screens.Homepage(self.root, self).get())
 
+        # Main window loop
         self.root.mainloop()
 
+    # Get background image
     def get_background(self) -> Image:
         return Image.open(f"assets/{self.theme_data['img_bg']}")
 
+    # Get blob image and resize and rotate
     def get_blob(self, width, height, angle) -> (ImageTk.PhotoImage, Image):
         blob = Image.open(f"assets/{self.theme_data['img_blob']}").rotate(angle, Image.NEAREST, expand=True).resize((width, height), 1)
         return ImageTk.PhotoImage(blob)
 
+    # Get coordinates relative to the root window
     @staticmethod
     def get_coordinates_relative_window(widget):
         return widget.winfo_rootx() - root.winfo_rootx(), widget.winfo_rooty() - root.winfo_rooty()
 
+    # Encrypt a string
     @staticmethod
     def encrypt_str(raw: str):
         sha256 = hashlib.sha256()
         sha256.update(raw.encode('utf-8'))
         return sha256.hexdigest()
 
+    # Encrypt the password 256 times
     def encrypt_password(self, password: str):
         for _ in range(256):  # Encrypt 256 times
             password = self.encrypt_str(password)
         return password
 
+    # Checks if the data file exists
     def check_if_data_file_exists(self):
         # Check if data file exists
         if not os.path.exists(self.data_file):
             with open("data.json", "w+") as data_file:
                 json.dump({"users": {}}, data_file)
 
+    # Gets user data from username
     def get_user_data(self, username):
         self.check_if_data_file_exists()
 
@@ -124,6 +141,7 @@ class RecollectApp:
         except KeyError:
             return None
 
+    # Add new user data on account creation
     def add_new_user_data(self, username, password):
         self.check_if_data_file_exists()
         user_data = {
@@ -136,6 +154,7 @@ class RecollectApp:
         self.rewrite_user_data(username, user_data)
         return user_data
 
+    # Delete and rewrite the user data
     def rewrite_user_data(self, username, user_data):
         self.check_if_data_file_exists()
 
@@ -146,6 +165,7 @@ class RecollectApp:
             data_file.truncate()
             json.dump(data, data_file, indent=2)
 
+    # Get the game data for a user
     def get_game_data(self, username, game):
         user_data = self.get_user_data(username)
         if user_data is None:
@@ -159,6 +179,7 @@ class RecollectApp:
 
         return user_data['game_data'][game]
 
+    # Change the overall score for a user after a game
     def change_game_user_data(self, username, game, game_data, difficulty, score):
         user_data = self.get_user_data(username)
         if user_data is None:
@@ -196,6 +217,7 @@ class RecollectApp:
 
         return overall_change, original_overall_score, user_data['overall_score']
 
+    # Destroy the old screen and show the new screen
     def show_screen(self, screen: tk.Canvas):
         if self.current_screen is not None:
             self.current_screen.pack_forget()
@@ -204,11 +226,12 @@ class RecollectApp:
         screen.pack(side="top", fill=tk.BOTH, expand=True)
         self.current_screen = screen
 
+    # Unpack (not destroy) the old screen and show the overlaying screen
     def show_overlaying_screen(self, overlaying_screen: tk.Canvas):
-        # overlaying_screen.place(x=0, y=0, anchor="nw")
         self.current_screen.pack_forget()
         overlaying_screen.pack(side="top", fill=tk.BOTH, expand=True)
 
+    # Destroy the overlaying screen and repack the old screen
     def finish_overlaying_screen(self, overlaying_screen: tk.Canvas, screen=None):
         overlaying_screen.destroy()
         if screen is None:  # Do not update screen if None
@@ -216,6 +239,7 @@ class RecollectApp:
         else:  # Update screen if screen is provided
             self.show_screen(screen)
 
+    # Add transparent corners to an image
     @staticmethod
     def add_corners(image: Image, radius: int):
         # Adapted from https://stackoverflow.com/a/78202642
@@ -232,6 +256,7 @@ class RecollectApp:
         return image
 
 
+# Creates a base screen with background and blobs which can be implemented in screens
 class BaseScreen:
     def __init__(self, root: tk.Tk, app: RecollectApp, has_background: bool = True, has_blobs: bool = True):
         self.root = root
@@ -256,6 +281,7 @@ class BaseScreen:
         print("Created screen with memory usage:")
         get_memory()
 
+    # Should be called after initialisation is finished
     def finish_init(self):
         self.canvas.update_idletasks()  # Updates canvas coordinates size
 
@@ -272,9 +298,11 @@ class BaseScreen:
         print("Finished creating screen with memory usage:")
         get_memory()
 
+    # Returns the screen
     def get(self):
         return self.canvas
 
+    # Updates the background
     def update_background(self, _=None):
         self.canvas.delete("background")
         # Adjust background stretching etc.
@@ -284,11 +312,13 @@ class BaseScreen:
         self.canvas.bg_image = ImageTk.PhotoImage(self.current_background)  # Must be in class scope
         self.canvas.create_image(0, 0, image=self.canvas.bg_image, anchor="nw", tags="background")  # Don't make one-liner
 
+    # Places blob at coordinates
     def place_blob(self, size: int, angle: int | float, x: int | float, y: int | float, anchor):
         blob_tk = self.app.get_blob(size, size, angle)
         self._blobs_tk.append(blob_tk)  # Must be in class scope
         self.canvas.create_image(x, y, image=self._blobs_tk[-1], anchor=anchor, tags="blob")  # Don't make one-liner
 
+    # Update location/size of blobs
     def update_blobs(self, _=None):
         self.canvas.delete("blob")
         # Clears previous blobs from memory
@@ -300,6 +330,7 @@ class BaseScreen:
         self.place_blob(max(int(root.winfo_width() * 0.2666), 100), 25, root.winfo_width() + 90, root.winfo_height() * 0.25, "e")  # size=27% of width, x=100% of height + 90px, y=25% of height
         self.place_blob(max(int(root.winfo_width() * 0.4), 100), 150, root.winfo_width() + 55, root.winfo_height() - 60, "e")  # size=40% of width, x=100% of height + 55px, y=100% of height - 60%
 
+    # Updates the background of all transparent images
     def update_transparent_images(self, _=None):
         if self.has_background is False or self.current_background is None:  # No background or current background not showing
             return
@@ -324,6 +355,7 @@ class BaseScreen:
             transparent_image_data['updated_image'] = ImageTk.PhotoImage(image_with_background)
             image_label.config(image=transparent_image_data['updated_image'])
 
+    # Updates the background of all widgets that have some transparency
     def update_widgets_background(self, _=None, specific_widget=None):
         if self.has_background is False or self.current_background is None:  # No background or current background not showing
             return
@@ -333,7 +365,6 @@ class BaseScreen:
 
         update_widgets = self.widgets if specific_widget is None else [specific_widget]
         for widget in update_widgets:
-            # x1, y1 = widget.winfo_x(), widget.winfo_y()
             x1, y1 = self.app.get_coordinates_relative_window(widget)
             x2, y2 = x1 + widget.winfo_width(), y1 + widget.winfo_height()
 
@@ -348,6 +379,7 @@ class BaseScreen:
             if widget.__class__.__name__ == "RoundedButton":
                 widget.generate_button()  # Remakes polygon and text
 
+    # Destroys the screen
     def destroy(self):
         self.canvas.unbind("<Configure>")
         del self
@@ -495,6 +527,7 @@ class Screens:
             self.destroy()
             self.app.show_screen(Screens.Homepage(self.root, self.app).get())
 
+        # Check if username and password criteria are met
         def check_met_criteria(self):
             # Check if any entry is empty
             username_empty = self.username_entry.get().strip() in ["Username", ""]
@@ -505,6 +538,17 @@ class Screens:
                 if password_empty:
                     self.password_entry.config(bg=self.app.theme_data['btn_warn_prs'])
                 self.error_message.config(text="Cannot have blank username or password.")
+                return False
+
+            # Check username criteria
+            criteria_met = True
+            for i in self.username_entry.get():
+                if not i.isalnum() and i not in ["_"]:  # Invalid character used
+                    criteria_met = False
+                    break
+            if not criteria_met:
+                self.username_entry.config(bg=self.app.theme_data['btn_warn_prs'])
+                self.error_message.config(text="Username can only be alpha numerical.")
                 return False
 
             # Check length is greater than 7 characters
@@ -531,6 +575,7 @@ class Screens:
 
             return True
 
+        # Runs when sign in button is pressed
         def on_sign_in(self, _=None):
             self.error_message.config(text="", image="")
             self.root.focus()  # Unselects entry boxes
@@ -555,6 +600,7 @@ class Screens:
             # Password is correct / Account created
             self.app.username = entered_username
 
+            # Apply account options (theme, volume, etc.) if any
             try:
                 self.app.volume.set(int(user_data['options']['volume']))
                 self.app.theme = user_data['options']['theme']
@@ -565,6 +611,7 @@ class Screens:
             self.destroy()
             self.app.show_screen(Screens.GameSelection(self.root, self.app).get())
 
+        # Removes hinting when entry is focused
         @staticmethod
         def on_focusin_entry(entry: tk.Entry, hint: str):
             entry.config(fg="black", bg="white")
@@ -573,6 +620,7 @@ class Screens:
             if entry.get().strip() in ["Username", "Password"]:
                 entry.delete(0, tk.END)
 
+        # Shows hinting when empty entry is unfocused
         @staticmethod
         def on_focusout_entry(entry: tk.Entry, hint: str):
             if entry.get().strip() == "":
@@ -749,22 +797,27 @@ class Screens:
 
             self.finish_init()
 
+        # Generates the game button
         def after_game_button(self, button, image: Image, name: str, description: str):
             button.game_image = ImageTk.PhotoImage(self.app.add_corners(image.convert("RGBA").resize((130, 130)), 9))
             button.create_image(10, 10, image=button.game_image, anchor="nw", tag="button")
             button.create_text(150, 10, text=name, fill=self.app.theme_data['text'], font=("Poppins Bold", 15, "bold"), anchor="nw", tag="button")
             button.create_text(150, 50, text=description, fill=self.app.theme_data['text'], font=("Poppins Regular", 10), width=button.width - 160, anchor="nw", tag="button")
 
+        # Generates the difficulty button
         def after_difficulty_button(self, button, title: str, text: str):
             button.create_text(10, 0, text=title, fill=self.app.theme_data['text'], font=("Poppins Bold", 14, "bold"), anchor="nw", tag="button")
             button.create_text(10, 33, text=text, fill=self.app.theme_data['text'], font=("Poppins Regular", 9), width=button.width - 10, anchor="nw", tag="button")
 
+        # Scrolls the game canvas
         def on_mouse_wheel(self, event):
             self.game_inner_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
+        # Shows options menu
         def on_settings_click(self):
             self.app.show_overlaying_screen(Screens.SettingsMenu(self.root, self.app, self).get())
 
+        # Goes back from difficulty screen to game selection
         def on_difficulty_back(self):
             self.selected_game = None
 
@@ -776,6 +829,7 @@ class Screens:
             self.difficulty_canvas.pack_forget()
             self.game_outer_frame.pack(fill=tk.BOTH, expand=True)
 
+        # Goes to difficulty screen
         def on_game_select(self, game_name: str):
             self.selected_game = game_name
 
@@ -787,6 +841,7 @@ class Screens:
             self.game_outer_frame.pack_forget()
             self.difficulty_canvas.pack(fill=tk.BOTH, expand=True)
 
+        # Passes the difficulty to the game and shows the game screen
         def on_difficulty_select(self, difficulty: str):
             self.app.show_screen(self.app.games[self.selected_game](self.root, self.app, difficulty).get())
             del self
@@ -905,6 +960,7 @@ class Screens:
 
             self.finish_init()
 
+        # Generates volume button
         def gen_volume_button(self, button):
             text = f"VOLUME: {self.app.volume.get()}%   "
             self.volume_slider = tk.Scale(button, from_=0, to=100, orient="horizontal", variable=self.app.volume, length=100, showvalue=False, bg=button.button_background, bd=0, borderwidth=0, highlightthickness=0)
@@ -933,6 +989,7 @@ class Screens:
             self.volume_button.itemconfig(self.volume_text_id, text=f"VOLUME: {self.app.volume.get()}%  ")
             self.mute_button.generate_button()  # Regenerates mute button to update label (UNMUTE/MUTE)
 
+        # Generates theme button
         def gen_theme_button(self, button):
             first_text = "THEME: "
             second_text = self.app.theme
@@ -962,6 +1019,7 @@ class Screens:
 
             self.theme_button.generate_button()  # Regenerates theme button to update theme name
 
+        # Save the options to the user data file
         def save_options(self):
             # Makes sure user is signed in
             if self.app.username is None:
@@ -981,6 +1039,7 @@ class Screens:
 
             self.app.rewrite_user_data(self.app.username, current_user_data)
 
+        # Saves and apply the options
         def on_leave_options(self):
             self.save_options()
 
@@ -1000,6 +1059,7 @@ class Screens:
             self.app.finish_overlaying_screen(self.get())  # Screen not specified so screen will not regenerate (saves resources)
             del self
 
+        # Sign out the user and go back to home screen
         def on_sign_out(self):
             self.app.username = None
             self.app.finish_overlaying_screen(self.get())
@@ -1142,17 +1202,20 @@ class Screens:
 
             self.finish_init()
 
+        # Finish the overlaying screen and unpause
         def on_unpause_button(self):
             self.app.finish_overlaying_screen(self.get())
             if self.caller is not None:
                 self.caller.on_unpause()
             del self
 
+        # Go to options menu
         def on_options_button(self):
             self.canvas.pack_forget()
             self.app.show_overlaying_screen(Screens.SettingsMenu(self.root, self.app, self).get())
             del self
 
+        # Leave the game and go to game selection page
         def on_leave_game_button(self):
             self.app.finish_overlaying_screen(self.get())
             self.app.show_screen(Screens.GameSelection(self.root, self.app).get())
@@ -1236,6 +1299,7 @@ class Games:
 
             self.finish_init()
 
+        # Selects the photos for the grid and creates it on the canvas
         def create_grid(self, rows, columns):
             list_of_photos = []
             selected_folder = [
@@ -1285,6 +1349,7 @@ class Games:
                         self.grid[row][col]['found'] = True
                         self.change_grid_button_bg(row, col, "#6f727b", "#6f727b", "#6f727b")
 
+        # Stops timer and goes to pause menu
         def on_pause(self):
             if self.game_started is True:
                 self.time_elapsed.append(time.time() - self.last_start_time)
@@ -1292,11 +1357,13 @@ class Games:
                     self.game_canvas.after_cancel(self.schedule_time_update_id)
             self.app.show_overlaying_screen(Screens.PauseMenu(self.root, self.app, self.game, self.difficulty, self).get())
 
+        # Continues the timer
         def on_unpause(self):
             if self.game_started is True:
                 self.last_start_time = time.time()
                 self.update_time()
 
+        # Starts the game and timer
         def on_click_start(self):
             self.game_started = True
             self.heading.destroy()
@@ -1306,6 +1373,7 @@ class Games:
             self.last_start_time = time.time()
             self.update_time()
 
+        # Should loop, updates the time label at the top bar
         def update_time(self):
             seconds_taken = sum(self.time_elapsed) + (time.time() - self.last_start_time)
             if seconds_taken < 3600:
@@ -1320,6 +1388,7 @@ class Games:
                 self.game_canvas.after_cancel(self.schedule_time_update_id)
             self.schedule_time_update_id = self.game_canvas.after(100, self.update_time)
 
+        # Recalculate score and change label at top bar
         def update_score(self):
             score = self.base_score
             score -= self.mistakes
@@ -1329,6 +1398,7 @@ class Games:
             self.score_label.config(text=f"Score: {score}")
             return score
 
+        # Selects the clicked card and check the selected card if 2 are selected
         def on_click_card(self, row, col):
             grid_num = (row, col)
             if grid_num in self.selected_grids:
@@ -1341,12 +1411,14 @@ class Games:
             if len(self.selected_grids) == 2:
                 self.check_selected_cards()
 
+        # Change the background of buttons for hover and press events
         def change_grid_button_bg(self, row, col, bg, hover_bg, press_bg):
             self.grid[row][col]['button'].button_background = bg
             self.grid[row][col]['button'].button_hover_background = hover_bg
             self.grid[row][col]['button'].button_press_background = press_bg
             self.grid[row][col]['button'].generate_button()
 
+        # Shows the cards, checks if the selected cards match, and schedules the change back event
         def check_selected_cards(self):
             row, col = self.selected_grids[0]
             row2, col2 = self.selected_grids[1]
@@ -1386,6 +1458,7 @@ class Games:
 
             self.game_canvas.after(750, lambda: self.hide_selected_cards(correct, (row, col), (row2, col2)))
 
+        # Hides the selected cards, should be scheduled
         def hide_selected_cards(self, correct, grid1, grid2):
             row, col = grid1
             row2, col2 = grid2
@@ -1408,6 +1481,7 @@ class Games:
             if completed:
                 self.on_finish_game()
 
+        # Destroy the game canvas and shows the summary
         def on_finish_game(self):
             self.game_started = False
             self.time_elapsed.append(time.time() - self.last_start_time)
@@ -1487,11 +1561,13 @@ class Games:
             )
             leave_game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
 
+        # Goes back to the game selection page
         def on_leave_game_button(self):
             self.app.show_screen(Screens.GameSelection(self.root, self.app).get())
             del self
 
 
+# A class to create a RoundedButton, acts like a canvas but has button arguments
 class RoundedButton(tk.Canvas):
     # Adapted from https://stackoverflow.com/a/69092113
     def __init__(self, parent=None, text: str = "", font: tuple = ("Times", 30, "bold"),
@@ -1541,6 +1617,7 @@ class RoundedButton(tk.Canvas):
 
         self.bind("<Configure>", self.resize)
 
+    # Generates a rounded rectangle using polygon points
     def round_rectangle(self, x1, y1, x2, y2, radius=25, update=False, **kwargs):  # if update is False a new rounded rectangle's id will be returned else updates existing rounded rect.
         # Adapted from https://stackoverflow.com/a/44100075/15993687
         points = [x1 + radius, y1,
@@ -1568,6 +1645,7 @@ class RoundedButton(tk.Canvas):
         else:
             self.coords(self.button_obj, points)
 
+    # Generates the text/images on a button
     def generate_button(self):
         self.delete("button")  # Deletes existing button to regenerate
 
@@ -1594,6 +1672,7 @@ class RoundedButton(tk.Canvas):
         if self.on_regen is not None:
             self.on_regen()
 
+    # Resizes the button
     def resize(self, _=None):
         text_bbox = self.bbox(self.text_obj)
         width = max(self.winfo_width(), text_bbox[2] - text_bbox[0] + self.text_padding) - 1  # -1 pixel size so border is not cut off
@@ -1603,6 +1682,7 @@ class RoundedButton(tk.Canvas):
         y = (height - (text_bbox[3] - text_bbox[1])) / 2
         self.moveto(self.text_obj, x, y)
 
+    # Handles hover and click events
     def on_event(self, event):  # Handles all hover and press events
         if event.type == tk.EventType.ButtonPress:
             self.itemconfig(self.button_obj, fill=self.button_press_background)
@@ -1623,9 +1703,13 @@ class RoundedButton(tk.Canvas):
 
 
 if __name__ == "__main__":
+    # Adds support for custom fonts
     pyglet.options["win32_gdi_font"] = True
     pyglet.font.add_file("assets/fonts/Poppins-Bold.ttf")
     pyglet.font.add_file("assets/fonts/Poppins-Regular.ttf")
 
+    # Create the root window
     root = tk.Tk()
+
+    # Start the app
     RecollectApp(root)
