@@ -284,6 +284,7 @@ class BaseScreen:
 
     # Should be called after initialisation is finished
     def finish_init(self):
+        self.setup_keypress_listener()  # Sets up listener for key releases
         self.canvas.update_idletasks()  # Updates canvas coordinates size
 
         if self.has_background:
@@ -302,6 +303,12 @@ class BaseScreen:
     # Returns the screen
     def get(self):
         return self.canvas
+
+    def setup_keypress_listener(self):
+        self.root.bind("<KeyRelease>", lambda e: self.on_keyboard_press(e.keysym.lower()))
+
+    def on_keyboard_press(self, key):
+        pass
 
     # Updates the background
     def update_background(self, _=None):
@@ -391,6 +398,14 @@ class Screens:
         def __init__(self, root: tk.Tk, app: RecollectApp):
             super().__init__(root, app, True, True)  # Implements all variables and function from base class "BaseScreen"
 
+            accessibility_info_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
+            accessibility_info_canvas.pack(padx=(0, 3), anchor="nw", fill="x")
+            self.widgets.append(accessibility_info_canvas)
+
+            accessibility_info_label = tk.Label(accessibility_info_canvas, text="Accessibility: Press the underlined key for quick navigation", font=("Poppins Regular", 7))
+            accessibility_info_label.pack(anchor="n", side=tk.RIGHT)
+            self.widgets.append(accessibility_info_label)
+
             logo_image = Image.open("assets/logo.png").convert("RGBA").resize((370, 121))  # Must be multiple of 935 x 306
             logo_label = tk.Label(self.canvas, borderwidth=0, highlightthickness=0)
             image_data = {
@@ -399,30 +414,34 @@ class Screens:
                 "updated_image": ImageTk.PhotoImage(logo_image)  # Used to save only
             }
             logo_label.config(image=image_data['updated_image'])
-            logo_label.pack(anchor=tk.CENTER, pady=(50, 0))
+            logo_label.pack(anchor=tk.CENTER, pady=(40, 0))
             self.transparent_images.append(image_data)
             del logo_image
 
+            heading = tk.Label(self.canvas, text="A memory and cognitive skill trainer", font=("Poppins Bold", 15, "bold"))
+            heading.pack(anchor=tk.CENTER, pady=(10, 0))
+            self.widgets.append(heading)
+
             start_button = RoundedButton(
                 self.canvas, text="START", font=("Poppins Bold", 20, "bold"),
-                width=350, height=75, radius=29, text_padding=0,
+                width=350, height=75, radius=29, text_padding=0, underline_index=0,
                 button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
                 button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
                 button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
-                command=self.on_click_start
+                command=self.on_start_button
             )
-            start_button.pack(anchor=tk.CENTER, pady=(30, 0))
+            start_button.pack(anchor=tk.CENTER, pady=(20, 0))
             self.widgets.append(start_button)
 
             options_button = RoundedButton(
                 self.canvas, text="OPTIONS", font=("Poppins Bold", 15, "bold"),
-                width=300, height=50, radius=29, text_padding=0,
+                width=300, height=50, radius=29, text_padding=0, underline_index=0,
                 button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
                 button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
                 button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
-                command=self.on_click_options
+                command=self.on_options_button
             )
             options_button.pack(anchor=tk.CENTER, pady=(20, 0))
             self.widgets.append(options_button)
@@ -441,7 +460,15 @@ class Screens:
 
             self.finish_init()
 
-        def on_click_start(self):
+        def on_keyboard_press(self, key):
+            if key == "s":
+                self.root.unbind("<KeyRelease>")
+                self.on_start_button()
+            elif key == "o":
+                self.root.unbind("<KeyRelease>")
+                self.on_options_button()
+
+        def on_start_button(self):
             self.destroy()
             if self.app.username is None or self.app.get_user_data(self.app.username) is None:  # Not logged in or username not in data for some reason
                 self.app.username = None
@@ -449,15 +476,23 @@ class Screens:
             else:
                 self.app.show_screen(Screens.GameSelection(self.root, self.app).get())
 
-        def on_click_options(self):
+        def on_options_button(self):
             self.app.show_overlaying_screen(Screens.SettingsMenu(self.root, self.app, self).get())
 
     class Login(BaseScreen):
         def __init__(self, root: tk.Tk, app: RecollectApp):
             super().__init__(root, app, True, True)  # Implements all variables and function from base class "BaseScreen"
 
+            accessibility_info_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
+            accessibility_info_canvas.pack(padx=(0, 3), anchor="nw", fill="x")
+            self.widgets.append(accessibility_info_canvas)
+
+            accessibility_info_label = tk.Label(accessibility_info_canvas, text="Accessibility: Use tab and enter for quick navigation", font=("Poppins Regular", 7))
+            accessibility_info_label.pack(anchor="n", side=tk.RIGHT)
+            self.widgets.append(accessibility_info_label)
+
             logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
-            logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw")
+            logo_canvas.pack(pady=(0, 0), padx=(10, 0), anchor="nw")
             self.widgets.append(logo_canvas)
 
             logo_image = Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90))  # Must be multiple of 935 x 306
@@ -468,12 +503,12 @@ class Screens:
                 "updated_image": ImageTk.PhotoImage(logo_image)  # Used to save only
             }
             logo_label.config(image=image_data['updated_image'])
-            logo_label.pack(anchor="nw", padx=(5, 0), pady=(3, 3), side=tk.LEFT)
+            logo_label.pack(anchor="nw", padx=(5, 0), pady=(0, 3), side=tk.LEFT)
             self.transparent_images.append(image_data)
             del logo_image
 
             logo_title = tk.Label(logo_canvas, text="Sign Up or Log In", font=("Poppins Regular", 15))
-            logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
+            logo_title.pack(anchor="nw", pady=(19, 0), side=tk.LEFT)
             self.widgets.append(logo_title)
 
             back_button = RoundedButton(
@@ -483,7 +518,7 @@ class Screens:
                 button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
                 button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
-                command=self.on_back
+                command=self.on_back_button
             )
             back_button.pack(pady=(5, 0), padx=(10, 0), anchor="nw")
             self.widgets.append(back_button)
@@ -523,7 +558,12 @@ class Screens:
 
             self.finish_init()
 
-        def on_back(self):
+        def on_keyboard_press(self, key):
+            if key == "escape":
+                self.root.unbind("<KeyRelease>")
+                self.on_back_button()
+
+        def on_back_button(self):
             self.destroy()
             self.app.show_screen(Screens.Homepage(self.root, self.app).get())
 
@@ -688,8 +728,16 @@ class Screens:
 
             self.selected_game = None
 
+            accessibility_info_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
+            accessibility_info_canvas.pack(padx=(0, 3), anchor="nw", fill="x")
+            self.widgets.append(accessibility_info_canvas)
+
+            accessibility_info_label = tk.Label(accessibility_info_canvas, text="Accessibility: Press the corresponding number for quick navigation, press O for options", font=("Poppins Regular", 7))
+            accessibility_info_label.pack(anchor="n", side=tk.RIGHT)
+            self.widgets.append(accessibility_info_label)
+
             logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
-            logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw", fill="x")
+            logo_canvas.pack(pady=(0, 0), padx=(10, 0), anchor="nw", fill="x")
             self.widgets.append(logo_canvas)
 
             logo_image = Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90))  # Must be multiple of 935 x 306
@@ -700,12 +748,12 @@ class Screens:
                 "updated_image": ImageTk.PhotoImage(logo_image)  # Used to save only
             }
             logo_label.config(image=image_data['updated_image'])
-            logo_label.pack(anchor="nw", padx=(5, 0), pady=(3, 3), side=tk.LEFT)
+            logo_label.pack(anchor="nw", padx=(5, 0), pady=(0, 3), side=tk.LEFT)
             self.transparent_images.append(image_data)
             del logo_image
 
             self.logo_title = tk.Label(logo_canvas, text="Gamemodes", font=("Poppins Regular", 15))
-            self.logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
+            self.logo_title.pack(anchor="nw", pady=(19, 0), side=tk.LEFT)
             self.widgets.append(self.logo_title)
 
             settings_button = RoundedButton(
@@ -718,7 +766,7 @@ class Screens:
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=self.on_settings_click
             )
-            settings_button.pack(anchor="ne", pady=(15, 0), side=tk.RIGHT)
+            settings_button.pack(anchor="ne", pady=(12, 0), side=tk.RIGHT)
             self.widgets.append(settings_button)
 
             self.game_outer_frame = tk.Frame(self.canvas, bd=0, borderwidth=0, highlightthickness=0, bg=self.app.theme_data['accent'])
@@ -734,10 +782,10 @@ class Screens:
             self.root.update()
             self.game_inner_canvas.bind("<Configure>", lambda e: self.game_inner_canvas.configure(scrollregion=self.game_inner_canvas.bbox("all")))
 
-            game_button_canvas = tk.Canvas(self.game_inner_canvas, bg=self.app.theme_data['accent'], bd=0, borderwidth=0, highlightthickness=0)
+            self.game_button_canvas = tk.Canvas(self.game_inner_canvas, bg=self.app.theme_data['accent'], bd=0, borderwidth=0, highlightthickness=0)
 
             game_button = RoundedButton(
-                game_button_canvas, font=("", 0, ""),
+                self.game_button_canvas, font=("", 0, ""),
                 width=600, height=150, radius=29, text_padding=0,
                 bg=self.app.theme_data['accent'],
                 button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
@@ -746,12 +794,12 @@ class Screens:
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=lambda: self.on_game_select("Matching Tiles")
             )
-            game_button.on_regen = lambda: self.after_game_button(game_button, self.app.get_background(), "MATCHING TILES", "Flip over and memorise pairs of cards, trying to find matching images.\nEnhances concentration and memory skills.")
+            game_button.on_regen = lambda: self.after_game_button(game_button, self.app.get_background(), "MATCHING TILES (1)", "Flip over and memorise pairs of cards, trying to find matching images.\nEnhances concentration and memory skills.")
             game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
             game_button.on_regen()
 
             game_button = RoundedButton(
-                game_button_canvas, font=("", 0, ""),
+                self.game_button_canvas, font=("", 0, ""),
                 width=600, height=150, radius=29, text_padding=0,
                 bg=self.app.theme_data['accent'],
                 button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
@@ -765,7 +813,7 @@ class Screens:
             game_button.on_regen()
 
             game_button = RoundedButton(
-                game_button_canvas, font=("", 0, ""),
+                self.game_button_canvas, font=("", 0, ""),
                 width=600, height=150, radius=29, text_padding=0,
                 bg=self.app.theme_data['accent'],
                 button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
@@ -778,11 +826,11 @@ class Screens:
             game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
             game_button.on_regen()
 
-            self.game_inner_canvas.create_window((0, 0), window=game_button_canvas, anchor="nw")
+            self.game_inner_canvas.create_window((0, 0), window=self.game_button_canvas, anchor="nw")
 
             self.game_inner_canvas.bind("<MouseWheel>", self.on_mouse_wheel)
-            game_button_canvas.bind("<MouseWheel>", self.on_mouse_wheel)
-            for child in game_button_canvas.children.values():
+            self.game_button_canvas.bind("<MouseWheel>", self.on_mouse_wheel)
+            for child in self.game_button_canvas.children.values():
                 child.bind("<MouseWheel>", self.on_mouse_wheel)
 
             # Fixes game button canvas getting cut off
@@ -851,6 +899,23 @@ class Screens:
 
             self.finish_init()
 
+        def on_keyboard_press(self, key):
+            if key == "o":
+                self.root.unbind("<KeyRelease>")
+                self.on_settings_click()
+            elif self.game_button_canvas.winfo_ismapped():
+                if key == "1":
+                    self.on_game_select("Matching Tiles")
+            elif self.difficulty_canvas.winfo_ismapped():  # If difficulty screen is showing
+                if key in ["escape", "b"]:
+                    self.on_difficulty_back()
+                elif key in ["e", "1"]:
+                    self.on_difficulty_select("easy")
+                elif key in ["n", "2"]:
+                    self.on_difficulty_select("normal")
+                elif key in ["h", "3"]:
+                    self.on_difficulty_select("hard")
+
         # Generates the game button
         def after_game_button(self, button, image: Image, name: str, description: str):
             button.game_image = ImageTk.PhotoImage(self.app.add_corners(image.convert("RGBA").resize((130, 130)), 9))
@@ -862,6 +927,7 @@ class Screens:
         def after_difficulty_button(self, button, title: str, text: str):
             button.create_text(10, 0, text=title, fill=self.app.theme_data['text'], font=("Poppins Bold", 14, "bold"), anchor="nw", tag="button")
             button.create_text(10, 33, text=text, fill=self.app.theme_data['text'], font=("Poppins Regular", 9), width=button.width - 10, anchor="nw", tag="button")
+            button.create_line(10, 30, 25, 30, width=3, tags="button")
 
         # Scrolls the game canvas
         def on_mouse_wheel(self, event):
@@ -901,14 +967,21 @@ class Screens:
             del self
 
     class SettingsMenu(BaseScreen):
-        def __init__(self, root: tk.Tk, app: RecollectApp, caller=None):
+        def __init__(self, root: tk.Tk, app: RecollectApp, caller):
             super().__init__(root, app, True, True)  # Implements all variables and function from base class "BaseScreen"
             self.caller = caller
-
             self.original_theme = self.app.theme
 
+            accessibility_info_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
+            accessibility_info_canvas.pack(padx=(0, 3), anchor="nw", fill="x")
+            self.widgets.append(accessibility_info_canvas)
+
+            accessibility_info_label = tk.Label(accessibility_info_canvas, text="Accessibility: Press the underlined key for quick navigation", font=("Poppins Regular", 7))
+            accessibility_info_label.pack(anchor="n", side=tk.RIGHT)
+            self.widgets.append(accessibility_info_label)
+
             logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
-            logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw", fill="x")
+            logo_canvas.pack(pady=(0, 0), padx=(10, 0), anchor="nw", fill="x")
             self.widgets.append(logo_canvas)
 
             logo_image = Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90))  # Must be multiple of 935 x 306
@@ -919,25 +992,25 @@ class Screens:
                 "updated_image": ImageTk.PhotoImage(logo_image)  # Used to save only
             }
             logo_label.config(image=image_data['updated_image'])
-            logo_label.pack(anchor="nw", padx=(5, 0), pady=(3, 3), side=tk.LEFT)
+            logo_label.pack(anchor="nw", padx=(5, 0), pady=(0, 3), side=tk.LEFT)
             self.transparent_images.append(image_data)
             del logo_image
 
             logo_title = tk.Label(logo_canvas, text="Options Menu", font=("Poppins Regular", 15))
-            logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
+            logo_title.pack(anchor="nw", pady=(19, 0), side=tk.LEFT)
             self.widgets.append(logo_title)
 
-            if self.app.username is not None and self.caller is not None and self.caller.__class__.__name__ != "PauseMenu":  # Don't allow sign out when in game
+            if self.app.username is not None and self.caller.__class__.__name__ != "PauseMenu":  # Don't allow sign out when in game
                 sign_out_button = RoundedButton(
                     logo_canvas, text="SIGN OUT", font=("Poppins Bold", 15, "bold"),
-                    width=210, height=50, radius=29, text_padding=0,
+                    width=210, height=50, radius=29, text_padding=0, underline_index=0,
                     button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
                     button_hover_background=self.app.theme_data['btn_warn_hvr'], button_hover_foreground="#000000",
                     button_press_background=self.app.theme_data['btn_warn_prs'], button_press_foreground="#000000",
                     outline_colour=self.app.theme_data['outline'], outline_width=1,
                     command=self.on_sign_out
                 )
-                sign_out_button.pack(anchor="ne", pady=(15, 0), side=tk.RIGHT)
+                sign_out_button.pack(anchor="ne", pady=(12, 0), side=tk.RIGHT)
                 self.widgets.append(sign_out_button)
 
             heading = tk.Label(self.canvas, text="Sound Settings", font=("Poppins Bold", 15, "bold"))
@@ -946,12 +1019,12 @@ class Screens:
 
             self.mute_button = RoundedButton(
                 self.canvas, text=("MUTE" if self.app.volume.get() != 0 else "UNMUTE"), font=("Poppins Bold", 15, "bold"),
-                width=300, height=50, radius=29, text_padding=0,
+                width=300, height=50, radius=29, text_padding=0, underline_index=0,
                 button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
                 button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
                 button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
-                command=lambda: self.on_mute()
+                command=lambda: self.on_mute_button()
             )
             self.mute_button.pack(anchor=tk.CENTER, pady=(0, 0))
             self.widgets.append(self.mute_button)
@@ -1002,7 +1075,7 @@ class Screens:
 
             leave_button = RoundedButton(
                 self.canvas, text="LEAVE AND APPLY", font=("Poppins Bold", 15, "bold"),
-                width=300, height=50, radius=29, text_padding=0,
+                width=300, height=50, radius=29, text_padding=0, underline_index=0,
                 button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
                 button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
                 button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
@@ -1013,6 +1086,16 @@ class Screens:
             self.widgets.append(leave_button)
 
             self.finish_init()
+
+        def on_keyboard_press(self, key):
+            if key == "m":
+                self.on_mute_button()
+            elif key == "t":
+                self.on_change_theme()
+            elif key in ["l", "o", "escape"]:
+                self.on_leave_options()
+            elif key == "s":
+                self.on_sign_out()
 
         # Generates volume button
         def gen_volume_button(self, button):
@@ -1030,7 +1113,7 @@ class Screens:
             self.volume_slider.place(x=(start_x + text_width + 100 / 2), y=center_y, anchor="center")
             self.volume_slider.configure(command=lambda value: button.itemconfig(self.volume_text_id, text=f"VOLUME: {value}%  "))
 
-        def on_mute(self):
+        def on_mute_button(self):
             if self.app.volume.get() != 0:  # Mutes
                 self.app.last_volume = self.app.volume.get()
                 self.app.volume.set(0)
@@ -1061,6 +1144,7 @@ class Screens:
             button.create_text((start_x + bold_text_width / 2), center_y, text=first_text, font=bold_font, anchor="center", tag="button")
             button.create_text((start_x + bold_text_width + normal_text_width / 2), center_y, text=second_text, font=normal_font, anchor="center", tag="button")
             button.create_text(button.winfo_width() - 4, button.winfo_height() + 4, text="Click to cycle", font=small_font, anchor="se", tag="button")
+            button.create_line(start_x, 35, start_x + 16, 35, width=3, tag="button")
 
         def on_change_theme(self):
             all_themes = list(self.app.themes.keys())
@@ -1097,20 +1181,23 @@ class Screens:
         def on_leave_options(self):
             self.save_options()
 
-            if self.caller is not None and self.caller.__class__.__name__ == "PauseMenu":
+            if self.caller.__class__.__name__ == "PauseMenu":
                 self.get().destroy()  # Can't use finish_overlaying_screen since it will pack current screen
                 self.caller.canvas.pack(side="top", fill=tk.BOTH, expand=True)  # Packs pause menu
+                self.caller.setup_keypress_listener()
                 del self
                 return
 
             # If theme is updated, regenerate last screen (self.caller)
-            if self.caller is not None and self.original_theme != self.app.theme:
+            if self.original_theme != self.app.theme:
                 # Only update theme if not in game
                 self.app.finish_overlaying_screen(self.get(), screen=self.caller.__class__(self.root, self.app).get())  # Recreates class so the themes are updated
+                self.caller.setup_keypress_listener()
                 del self
                 return
 
             self.app.finish_overlaying_screen(self.get())  # Screen not specified so screen will not regenerate (saves resources)
+            self.caller.setup_keypress_listener()
             del self
 
         # Sign out the user and go back to home screen
@@ -1121,12 +1208,20 @@ class Screens:
             del self
 
     class PauseMenu(BaseScreen):
-        def __init__(self, root: tk.Tk, app: RecollectApp, game_name: str, difficulty: str, caller=None):
+        def __init__(self, root: tk.Tk, app: RecollectApp, game_name: str, difficulty: str, caller):
             super().__init__(root, app, True, False)  # Implements all variables and function from base class "BaseScreen"
             self.caller = caller
 
+            accessibility_info_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
+            accessibility_info_canvas.pack(padx=(0, 3), anchor="nw", fill="x")
+            self.widgets.append(accessibility_info_canvas)
+
+            accessibility_info_label = tk.Label(accessibility_info_canvas, text="Accessibility: Press the underlined key for quick navigation", font=("Poppins Regular", 7))
+            accessibility_info_label.pack(anchor="n", side=tk.RIGHT)
+            self.widgets.append(accessibility_info_label)
+
             logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
-            logo_canvas.pack(pady=(10, 0), padx=(10, 0), anchor="nw", fill="x")
+            logo_canvas.pack(pady=(0, 0), padx=(10, 0), anchor="nw", fill="x")
             self.widgets.append(logo_canvas)
 
             logo_image = Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90))  # Must be multiple of 935 x 306
@@ -1137,12 +1232,12 @@ class Screens:
                 "updated_image": ImageTk.PhotoImage(logo_image)  # Used to save only
             }
             logo_label.config(image=image_data['updated_image'])
-            logo_label.pack(anchor="nw", padx=(5, 0), pady=(3, 3), side=tk.LEFT)
+            logo_label.pack(anchor="nw", padx=(5, 0), pady=(0, 3), side=tk.LEFT)
             self.transparent_images.append(image_data)
             del logo_image
 
             logo_title = tk.Label(logo_canvas, text=f"{game_name} ({difficulty.capitalize()} mode)", font=("Poppins Regular", 15))
-            logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
+            logo_title.pack(anchor="nw", pady=(19, 0), side=tk.LEFT)
             self.widgets.append(logo_title)
 
             heading = tk.Label(self.canvas, text="GAME PAUSED", font=("Poppins Bold", 17, "bold"))
@@ -1151,7 +1246,7 @@ class Screens:
 
             unpause_button = RoundedButton(
                 self.canvas, text="UNPAUSE", font=("Poppins Bold", 17, "bold"),
-                width=350, height=75, radius=29, text_padding=0,
+                width=350, height=75, radius=29, text_padding=0, underline_index=2,
                 button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
                 button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
                 button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
@@ -1163,7 +1258,7 @@ class Screens:
 
             options_button = RoundedButton(
                 self.canvas, text="OPTIONS", font=("Poppins Bold", 15, "bold"),
-                width=300, height=50, radius=29, text_padding=0,
+                width=300, height=50, radius=29, text_padding=0, underline_index=0,
                 button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
                 button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
                 button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
@@ -1175,7 +1270,7 @@ class Screens:
 
             leave_game_button = RoundedButton(
                 self.canvas, text="LEAVE GAME", font=("Poppins Bold", 15, "bold"),
-                width=300, height=50, radius=29, text_padding=0,
+                width=300, height=50, radius=29, text_padding=0, underline_index=0,
                 button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
                 button_hover_background=self.app.theme_data['btn_warn_hvr'], button_hover_foreground="#000000",
                 button_press_background=self.app.theme_data['btn_warn_prs'], button_press_foreground="#000000",
@@ -1208,7 +1303,7 @@ class Screens:
             skip_button.pack(side=tk.RIGHT)
             skip_button.generate_button()
 
-            skip_label = tk.Label(song_info_row3_canvas, text="Skip", font=("Poppins Regular", 12))
+            skip_label = tk.Label(song_info_row3_canvas, text="Skip", font=("Poppins Regular", 12), underline=0)
             skip_label.pack(anchor="center", side=tk.RIGHT, padx=(0, 5))
             self.widgets.append(skip_label)
 
@@ -1250,17 +1345,28 @@ class Screens:
             mute_button.pack(side=tk.RIGHT)
             mute_button.generate_button()
 
-            mute_label = tk.Label(song_info_row1_canvas, text="Mute", font=("Poppins Regular", 12))
+            mute_label = tk.Label(song_info_row1_canvas, text="Mute", font=("Poppins Regular", 12), underline=0)
             mute_label.pack(anchor="center", side=tk.RIGHT, padx=(0, 5))
             self.widgets.append(mute_label)
 
             self.finish_init()
 
+        def on_keyboard_press(self, key):
+            if key in ["escape", "p"]:
+                self.root.unbind("<KeyRelease>")
+                self.on_unpause_button()
+            elif key == "o":
+                self.root.unbind("<KeyRelease>")
+                self.on_options_button()
+            elif key == "l":
+                self.root.unbind("<KeyRelease>")
+                self.on_leave_game_button()
+
         # Finish the overlaying screen and unpause
         def on_unpause_button(self):
             self.app.finish_overlaying_screen(self.get())
-            if self.caller is not None:
-                self.caller.on_unpause()
+            self.caller.setup_keypress_listener()
+            self.caller.on_unpause()
             del self
 
         # Go to options menu
@@ -1314,6 +1420,8 @@ class Games:
             )
             pause_button.pack(anchor="ne", pady=(0, 0), side=tk.RIGHT)
 
+            tk.Label(top_bar_canvas, text="Press Esc to pause", font=("Poppins Regular", 7), bg=self.app.theme_data['accent']).pack(anchor="ne", side=tk.RIGHT)
+
             self.heading = tk.Label(self.canvas, text="Match pairs of the same cards", font=("Poppins Bold", 15, "bold"), bg=self.app.theme_data['accent'])
             self.heading.pack(anchor=tk.CENTER, pady=(30, 10))
 
@@ -1352,6 +1460,11 @@ class Games:
             self.schedule_time_update_id = None
 
             self.finish_init()
+
+        def on_keyboard_press(self, key):
+            if key == "escape":
+                self.root.unbind("<KeyRelease>")
+                self.on_pause()
 
         # Selects the photos for the grid and creates it on the canvas
         def create_grid(self, rows, columns):
@@ -1625,7 +1738,7 @@ class Games:
 class RoundedButton(tk.Canvas):
     # Adapted from https://stackoverflow.com/a/69092113
     def __init__(self, parent=None, text: str = "", font: tuple = ("Times", 30, "bold"),
-                 text_padding: int = 5, radius: int = 25,
+                 text_padding: int = 5, radius: int = 25, underline_index: int = None,
                  image: ImageTk = None,
                  button_background="#ffffff", button_foreground="#000000",
                  button_hover_background="#ffffff", button_hover_foreground="#000000",
@@ -1639,6 +1752,7 @@ class RoundedButton(tk.Canvas):
         self.font = font
         self.text_padding = text_padding
         self.radius = radius
+        self.underline_index = underline_index
         self.image = image
         self.button_background = button_background
         self.button_foreground = button_foreground
@@ -1708,15 +1822,13 @@ class RoundedButton(tk.Canvas):
             radius=self.radius, fill=self.button_background,
             outline=self.outline_colour, width=self.outline_width
         )
+
         self.text_obj = self.create_text(0, 0, text=self.text, tags="button", fill=self.button_foreground, font=self.font, justify=tk.CENTER)
+
         if self.image is not None:
             self.image_obj = self.create_image(self.width / 2, self.height / 2, image=self.image, tags="button")
 
-        text_rect = self.bbox(self.text_obj)
-        if int(self["width"]) < text_rect[2] - text_rect[0]:
-            self["width"] = (text_rect[2] - text_rect[0]) + 10
-        if int(self["height"]) < text_rect[3] - text_rect[1]:
-            self["height"] = (text_rect[3] - text_rect[1]) + 10
+        self.update()  # Fixes flickering
         self.resize()
 
         for widget in self.winfo_children():
@@ -1735,6 +1847,28 @@ class RoundedButton(tk.Canvas):
         x = (width - (text_bbox[2] - text_bbox[0])) / 2
         y = (height - (text_bbox[3] - text_bbox[1])) / 2
         self.moveto(self.text_obj, x, y)
+        self.draw_underline(x, y, text_bbox[3] - text_bbox[1])
+
+    def draw_underline(self, text_x, text_y, text_height):
+        if self.underline_index is not None:
+            # Get underline character's width
+            chars_text = self.create_text(0, 0, text=self.text[self.underline_index], font=self.font)
+            bbox = self.bbox(chars_text)
+            self.delete(chars_text)
+            underline_width = bbox[2] - bbox[0]
+
+            # Get width of characters before underline
+            chars_text = self.create_text(0, 0, text=self.text[:self.underline_index], font=self.font)
+            bbox = self.bbox(chars_text)
+            self.delete(chars_text)
+            prev_chars_width = bbox[2] - bbox[0]
+
+            # Draw underline
+            underline_x_start = text_x + prev_chars_width - 2  # Adjust the x-coordinate to be where the text is (with 2 px extra)
+            underline_y = text_y + text_height - 12  # Adjust the y-coordinate to be below the text (minus 12px to account for text spacing)
+            underline_x_end = underline_x_start + underline_width
+
+            self.create_line(underline_x_start, underline_y, underline_x_end, underline_y, width=3, tags="button")
 
     # Handles hover and click events
     def on_event(self, event):  # Handles all hover and press events
