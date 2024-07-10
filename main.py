@@ -24,6 +24,7 @@ class RecollectApp:
         self.root.title("Recollect")
         self.root.geometry("750x563")  # Same ratio as 1000 x 750
         self.root.minsize(750, 563)
+        self.username = None
 
         self.data_file = "data.json"
 
@@ -471,7 +472,7 @@ class Screens:
             self.transparent_images.append(image_data)
             del logo_image
 
-            logo_title = tk.Label(logo_canvas, text="Sign In", font=("Poppins Regular", 15))
+            logo_title = tk.Label(logo_canvas, text="Sign Up or Log In", font=("Poppins Regular", 15))
             logo_title.pack(anchor="nw", pady=(22, 0), side=tk.LEFT)
             self.widgets.append(logo_title)
 
@@ -487,19 +488,18 @@ class Screens:
             back_button.pack(pady=(5, 0), padx=(10, 0), anchor="nw")
             self.widgets.append(back_button)
 
-            heading = tk.Label(self.canvas, text="Sign In", font=("Poppins Bold", 15, "bold"))
-            heading.pack(anchor=tk.CENTER, pady=(10, 10))
-            self.widgets.append(heading)
+            self.heading = tk.Label(self.canvas, text="Sign Up or Log In", font=("Poppins Bold", 15, "bold"))
+            self.heading.pack(anchor=tk.CENTER, pady=(10, 10))
+            self.widgets.append(self.heading)
 
             self.username_entry = tk.Entry(self.canvas, font=("Poppins Regular", 11), width=25)
             self.username_entry.pack(anchor=tk.CENTER, pady=(5, 5))
             self.username_entry.bind("<FocusIn>", lambda event: self.on_focusin_entry(self.username_entry, "Username"))
             self.username_entry.bind("<FocusOut>", lambda event: self.on_focusout_entry(self.username_entry, "Username"))
-            self.username_entry.bind("<Return>", lambda event: self.password_entry.focus())
+            self.username_entry.bind("<Return>", self.on_next)
             self.on_focusout_entry(self.username_entry, "Username")
 
             self.password_entry = tk.Entry(self.canvas, font=("Poppins Regular", 11), width=25)
-            self.password_entry.pack(anchor=tk.CENTER, pady=(5, 5))
             self.password_entry.bind("<FocusIn>", lambda event: self.on_focusin_entry(self.password_entry, "Password"))
             self.password_entry.bind("<FocusOut>", lambda event: self.on_focusout_entry(self.password_entry, "Password"))
             self.password_entry.bind("<Return>", self.on_sign_in)
@@ -509,17 +509,17 @@ class Screens:
             self.error_message.pack(anchor=tk.CENTER, pady=(5, 10))
             self.widgets.append(self.error_message)
 
-            sign_in_button = RoundedButton(
-                self.canvas, text="SIGN IN", font=("Poppins Bold", 15, "bold"),
+            self.next_button = RoundedButton(
+                self.canvas, text="NEXT", font=("Poppins Bold", 15, "bold"),
                 width=250, height=50, radius=29, text_padding=0,
                 button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
                 button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
                 button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
-                command=self.on_sign_in
+                command=self.on_next
             )
-            sign_in_button.pack(anchor=tk.CENTER, pady=(5, 5))
-            self.widgets.append(sign_in_button)
+            self.next_button.pack(anchor=tk.CENTER, pady=(5, 5))
+            self.widgets.append(self.next_button)
 
             self.finish_init()
 
@@ -527,17 +527,12 @@ class Screens:
             self.destroy()
             self.app.show_screen(Screens.Homepage(self.root, self.app).get())
 
-        # Check if username and password criteria are met
-        def check_met_criteria(self):
+        def check_username_criteria(self):
             # Check if any entry is empty
             username_empty = self.username_entry.get().strip() in ["Username", ""]
-            password_empty = self.password_entry.get().strip() in ["Password", ""]
-            if username_empty or password_empty:
-                if username_empty:
-                    self.username_entry.config(bg=self.app.theme_data['btn_warn_prs'])
-                if password_empty:
-                    self.password_entry.config(bg=self.app.theme_data['btn_warn_prs'])
-                self.error_message.config(text="Cannot have blank username or password.")
+            if username_empty:
+                self.username_entry.config(bg=self.app.theme_data['btn_warn_prs'])
+                self.error_message.config(text="Cannot have blank username.")
                 return False
 
             # Check username criteria
@@ -549,6 +544,17 @@ class Screens:
             if not criteria_met:
                 self.username_entry.config(bg=self.app.theme_data['btn_warn_prs'])
                 self.error_message.config(text="Username can only be alpha numerical.")
+                return False
+
+            return True
+
+        # Check if username and password criteria are met
+        def check_password_criteria(self):
+            # Check if any entry is empty
+            password_empty = self.password_entry.get().strip() in ["Password", ""]
+            if password_empty:
+                self.password_entry.config(bg=self.app.theme_data['btn_warn_prs'])
+                self.error_message.config(text="Cannot have blank password.")
                 return False
 
             # Check length is greater than 7 characters
@@ -575,20 +581,56 @@ class Screens:
 
             return True
 
+        # Runs when continue button is pressed
+        def on_next(self, _=None):
+            self.error_message.config(text="", image="")
+            self.update_widgets_background(specific_widget=self.error_message)
+            self.root.focus()  # Unselects entry boxes
+
+            entered_username = self.username_entry.get().strip().lower()  # Lowercase usernames only
+
+            user_data = self.app.get_user_data(entered_username)
+            if user_data is None:  # Account does not exist
+                if not self.check_username_criteria():  # Username criteria is not met
+                    self.update_widgets_background(specific_widget=self.error_message)
+                    return
+                # Username criteria is met
+                self.heading.config(text="Create an Account")
+                self.next_button.text = "CREATE ACCOUNT"
+
+            else:  # Account exists
+                self.heading.config(text="Sign In")
+                self.next_button.text = "SIGN IN"
+            self.update_widgets_background(specific_widget=self.heading)  # Update heading background
+
+            # Change continue button callback and regen to update text
+            self.next_button.command = self.on_sign_in
+            self.next_button.generate_button()
+
+            # Unpack widgets below so password entry can be packed
+            self.error_message.pack_forget()
+            self.next_button.pack_forget()
+            self.password_entry.pack(anchor=tk.CENTER, pady=(5, 5))
+            self.error_message.pack(anchor=tk.CENTER, pady=(5, 10))
+            self.next_button.pack(anchor=tk.CENTER, pady=(5, 5))
+
+            self.password_entry.focus()
+
         # Runs when sign in button is pressed
         def on_sign_in(self, _=None):
             self.error_message.config(text="", image="")
+            self.update_widgets_background(specific_widget=self.error_message)
             self.root.focus()  # Unselects entry boxes
-
-            if not self.check_met_criteria():
-                self.update_widgets_background(specific_widget=self.error_message)
-                return
 
             entered_username = self.username_entry.get().strip().lower()  # Lowercase usernames only
             entered_password = self.password_entry.get()
 
             user_data = self.app.get_user_data(entered_username)
             if user_data is None:  # Account does not exist
+                if not self.check_password_criteria() or not self.check_username_criteria():  # Both criteria are not met
+                    self.update_widgets_background(specific_widget=self.error_message)
+                    return
+                # Both criteria are met
                 user_data = self.app.add_new_user_data(entered_username, entered_password)  # Create new account
 
             elif self.app.encrypt_password(entered_password) != user_data['password']:  # Account exists, but wrong password
@@ -608,17 +650,29 @@ class Screens:
             except KeyError:
                 print("User has no options data, continuing with existing options")
 
+            # Move to next screen
             self.destroy()
             self.app.show_screen(Screens.GameSelection(self.root, self.app).get())
 
         # Removes hinting when entry is focused
-        @staticmethod
-        def on_focusin_entry(entry: tk.Entry, hint: str):
+        def on_focusin_entry(self, entry: tk.Entry, hint: str):
             entry.config(fg="black", bg="white")
             if hint == "Password":
                 entry.config(show="*")
             if entry.get().strip() in ["Username", "Password"]:
                 entry.delete(0, tk.END)
+
+            if hint == "Username":  # Runs if user decides to change username after continuing
+                self.password_entry.pack_forget()  # Unpack password entry
+
+                # Update heading text and background
+                self.heading.config(text="Sign Up or Log In")
+                self.update_widgets_background(specific_widget=self.heading)  # Update heading background
+
+                # Change continue button callback and regen to update text
+                self.next_button.text = "NEXT"
+                self.next_button.command = self.on_next
+                self.next_button.generate_button()
 
         # Shows hinting when empty entry is unfocused
         @staticmethod
