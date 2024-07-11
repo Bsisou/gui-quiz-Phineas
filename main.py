@@ -7,6 +7,7 @@ import time
 import tkinter as tk
 import tkinter.font as tk_font
 
+# Install from requirements.txt using command: pip install -r requirements.txt
 import psutil  # for memory usage only - pip install psutil
 import pyglet  # pip install pyglet
 from PIL import Image, ImageTk, ImageDraw, ImageOps  # pip install pillow
@@ -17,6 +18,7 @@ def get_memory():
     print(f"Memory usage: {psutil.Process(os.getpid()).memory_info().rss / 1e+6} MB")
 
 
+# Main app that runs including screen management, data handling, etc.
 class RecollectApp:
     def __init__(self, root: tk.Tk):
         # Set up root window
@@ -794,7 +796,7 @@ class Screens:
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=lambda: self.on_game_select("Matching Tiles")
             )
-            game_button.on_regen = lambda: self.after_game_button(game_button, self.app.get_background(), "MATCHING TILES (1)", "Flip over and memorise pairs of cards, trying to find matching images.\nEnhances concentration and memory skills.")
+            game_button.on_regen = lambda: self.after_game_button(game_button, Image.open("assets/matching_tiles/icon.png"), "MATCHING TILES (1)", "Flip over and memorise pairs of cards, trying to find matching images.\nEnhances concentration and memory skills.")
             game_button.pack(anchor=tk.CENTER, padx=(10, 10), pady=(10, 10))
             game_button.on_regen()
 
@@ -1084,6 +1086,18 @@ class Screens:
             )
             leave_button.pack(anchor=tk.CENTER, pady=(30, 0))
             self.widgets.append(leave_button)
+
+            credit_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
+            credit_canvas.pack(padx=(3, 0), side=tk.BOTTOM, anchor="w")
+            self.widgets.append(credit_canvas)
+
+            image_credit_label = tk.Label(credit_canvas, text="All images sourced from Pixabay under CC0 License.", font=("Poppins Regular", 7))
+            image_credit_label.pack(anchor="nw")
+            self.widgets.append(image_credit_label)
+
+            font_credit_label = tk.Label(credit_canvas, text="Font used \"Poppins\" under SIL Open Font Licence.", font=("Poppins Regular", 7))
+            font_credit_label.pack(anchor="nw")
+            self.widgets.append(font_credit_label)
 
             self.finish_init()
 
@@ -1736,7 +1750,7 @@ class Games:
 
 # A class to create a RoundedButton, acts like a canvas but has button arguments
 class RoundedButton(tk.Canvas):
-    # Adapted from https://stackoverflow.com/a/69092113
+    # Heavily adapted from https://stackoverflow.com/a/69092113
     def __init__(self, parent=None, text: str = "", font: tuple = ("Times", 30, "bold"),
                  text_padding: int = 5, radius: int = 25, underline_index: int = None,
                  image: ImageTk = None,
