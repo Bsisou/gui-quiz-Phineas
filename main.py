@@ -6,12 +6,17 @@ import random
 import time
 import tkinter as tk
 import tkinter.font as tk_font
+import pygame
 
 # Install from requirements.txt using command: pip install -r requirements.txt
 import psutil  # for memory usage only - pip install psutil
 import pyglet  # pip install pyglet
 from PIL import Image, ImageTk, ImageDraw, ImageOps  # pip install pillow
 
+
+# https://www.no-copyright-music.com/
+# Command to cut and fade out from 0 to 90 sec
+# ffmpeg -ss 00:00:00 -to 00:01:30 -i "inputpath" -af "afade=t=out:st=83:d=5" -c:a libmp3lame "outputpath"
 
 # Get memory usage
 def get_memory():
@@ -27,6 +32,13 @@ class RecollectApp:
         self.root.geometry("750x563")  # Same ratio as 1000 x 750
         self.root.minsize(750, 563)
         self.username = None
+
+        pygame.init()
+        pygame.mixer.init()
+        self.MUSIC_END_EVENT = pygame.USEREVENT + 1
+        pygame.mixer.music.set_endevent(self.MUSIC_END_EVENT)
+        self.music_playing = None
+        self.hidden_music = []
 
         self.data_file = "data.json"
 
@@ -1046,8 +1058,8 @@ class Screens:
             self.volume_slider: tk.Scale | None = None
             self.volume_text_id = None
 
-            hidden_songs_button = RoundedButton(
-                self.canvas, text="View Hidden Songs", font=("Poppins Bold", 10, "bold"),
+            hidden_music_button = RoundedButton(
+                self.canvas, text="View Hidden Music", font=("Poppins Bold", 10, "bold"),
                 width=300, height=50, radius=29, text_padding=0,
                 button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
                 button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
@@ -1055,8 +1067,8 @@ class Screens:
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
                 command=None
             )
-            hidden_songs_button.pack(anchor=tk.CENTER, pady=(5, 0))
-            self.widgets.append(hidden_songs_button)
+            hidden_music_button.pack(anchor=tk.CENTER, pady=(5, 0))
+            self.widgets.append(hidden_music_button)
 
             heading = tk.Label(self.canvas, text="Appearance", font=("Poppins Bold", 15, "bold"))
             heading.pack(anchor=tk.CENTER, pady=(15, 0))
@@ -1091,13 +1103,17 @@ class Screens:
             credit_canvas.pack(padx=(3, 0), side=tk.BOTTOM, anchor="w")
             self.widgets.append(credit_canvas)
 
-            image_credit_label = tk.Label(credit_canvas, text="All images sourced from Pixabay under CC0 License.", font=("Poppins Regular", 7))
+            image_credit_label = tk.Label(credit_canvas, text="All images and sound effects sourced from Pixabay under CC0 License.", font=("Poppins Regular", 6))
             image_credit_label.pack(anchor="nw")
             self.widgets.append(image_credit_label)
 
-            font_credit_label = tk.Label(credit_canvas, text="Font used \"Poppins\" under SIL Open Font Licence.", font=("Poppins Regular", 7))
+            font_credit_label = tk.Label(credit_canvas, text="Font used \"Poppins\" under SIL Open Font Licence.", font=("Poppins Regular", 6))
             font_credit_label.pack(anchor="nw")
             self.widgets.append(font_credit_label)
+
+            music_credit_label = tk.Label(credit_canvas, text="All Music sourced from no-copyright-music.com", font=("Poppins Regular", 6))
+            music_credit_label.pack(anchor="nw")
+            self.widgets.append(music_credit_label)
 
             self.finish_init()
 
@@ -1294,76 +1310,105 @@ class Screens:
             leave_game_button.pack(anchor=tk.CENTER, pady=(20, 20))
             self.widgets.append(leave_game_button)
 
-            song_info_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
-            song_info_canvas.pack(side=tk.BOTTOM, anchor="e")
-            self.widgets.append(song_info_canvas)
+            self.music_info_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
+            self.music_info_canvas.pack(side=tk.BOTTOM, anchor="e")
+            self.widgets.append(self.music_info_canvas)
 
-            song_info_row3_canvas = tk.Canvas(song_info_canvas, borderwidth=0, highlightthickness=0, bg="#d9d9d9")
-            song_info_row3_canvas.pack(side=tk.BOTTOM, anchor="e")
-            self.widgets.append(song_info_row3_canvas)
+            self.music_info_row3_canvas = tk.Canvas(self.music_info_canvas, borderwidth=0, highlightthickness=0, bg="#d9d9d9")
+            self.music_info_row3_canvas.pack(side=tk.BOTTOM, anchor="e")
+            self.widgets.append(self.music_info_row3_canvas)
 
-            tk.Label(song_info_row3_canvas, text="Song name - Song Author", font=("Poppins Regular", 12), bg="#d9d9d9").pack(anchor="center", side=tk.RIGHT)
+            self.music_label = tk.Label(self.music_info_row3_canvas, text=os.path.splitext(os.path.basename(self.app.music_playing))[0] if self.app.music_playing is not None else "No music playing", font=("Poppins Regular", 12), bg="#d9d9d9")
+            self.music_label.pack(anchor="center", side=tk.RIGHT)
 
             skip_button = RoundedButton(
-                song_info_row3_canvas, font=("", 0, ""),
+                self.music_info_row3_canvas, font=("", 0, ""),
                 width=42, height=42, radius=0, text_padding=0,
                 image=ImageTk.PhotoImage(Image.open("assets/icons/skip.png").convert("RGBA").resize((25, 25))),
                 button_background="#737373", button_foreground="#000000",
                 button_hover_background="#8c8c8c", button_hover_foreground="#000000",
                 button_press_background="#3f3f3f", button_press_foreground="#000000",
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
-                command=None
+                command=self.on_skip_button
             )
             skip_button.pack(side=tk.RIGHT)
             skip_button.generate_button()
 
-            skip_label = tk.Label(song_info_row3_canvas, text="Skip", font=("Poppins Regular", 12), underline=0)
-            skip_label.pack(anchor="center", side=tk.RIGHT, padx=(0, 5))
-            self.widgets.append(skip_label)
+            self.skip_label = tk.Label(self.music_info_row3_canvas, text="Skip", font=("Poppins Regular", 12), underline=0)
+            self.skip_label.pack(anchor="center", side=tk.RIGHT, padx=(0, 5))
+            self.widgets.append(self.skip_label)
 
-            song_info_row2_canvas = tk.Canvas(song_info_canvas, borderwidth=0, highlightthickness=0, bg="#d9d9d9")
-            song_info_row2_canvas.pack(side=tk.BOTTOM, anchor="e")
-            self.widgets.append(song_info_row2_canvas)
+            music_info_row2_canvas = tk.Canvas(self.music_info_canvas, borderwidth=0, highlightthickness=0, bg="#d9d9d9")
+            music_info_row2_canvas.pack(side=tk.BOTTOM, anchor="e")
+            self.widgets.append(music_info_row2_canvas)
 
             hide_button = RoundedButton(
-                song_info_row2_canvas, font=("", 0, ""),
+                music_info_row2_canvas, font=("", 0, ""),
                 width=42, height=42, radius=0, text_padding=0,
                 image=ImageTk.PhotoImage(Image.open("assets/icons/hide.png").convert("RGBA").resize((25, 25))),
                 button_background="#765b5b", button_foreground="#000000",
                 button_hover_background=self.app.theme_data['btn_warn_hvr'], button_hover_foreground="#000000",
                 button_press_background=self.app.theme_data['btn_warn_prs'], button_press_foreground="#000000",
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
-                command=None
+                command=self.on_hide_button
             )
             hide_button.pack(side=tk.RIGHT)
             hide_button.generate_button()
 
-            hide_label = tk.Label(song_info_row2_canvas, text="Hide Song Permanently", font=("Poppins Regular", 10))
+            hide_label = tk.Label(music_info_row2_canvas, text="Hide Music Permanently", font=("Poppins Regular", 10))
             hide_label.pack(anchor="center", side=tk.RIGHT, padx=(0, 5))
             self.widgets.append(hide_label)
 
-            song_info_row1_canvas = tk.Canvas(song_info_canvas, borderwidth=0, highlightthickness=0, bg="#d9d9d9")
-            song_info_row1_canvas.pack(side=tk.BOTTOM, anchor="e")
-            self.widgets.append(song_info_row1_canvas)
+            music_info_row1_canvas = tk.Canvas(self.music_info_canvas, borderwidth=0, highlightthickness=0, bg="#d9d9d9")
+            music_info_row1_canvas.pack(side=tk.BOTTOM, anchor="e")
+            self.widgets.append(music_info_row1_canvas)
 
-            mute_button = RoundedButton(
-                song_info_row1_canvas, font=("", 0, ""),
+            self.mute_button = RoundedButton(
+                music_info_row1_canvas, font=("", 0, ""),
                 width=42, height=42, radius=0, text_padding=0,
                 image=ImageTk.PhotoImage(Image.open("assets/icons/mute.png").convert("RGBA").resize((25, 25))),
                 button_background="#737373", button_foreground="#000000",
                 button_hover_background="#8c8c8c", button_hover_foreground="#000000",
                 button_press_background="#3f3f3f", button_press_foreground="#000000",
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
-                command=None
+                command=self.on_mute_button
             )
-            mute_button.pack(side=tk.RIGHT)
-            mute_button.generate_button()
+            self.mute_button.pack(side=tk.RIGHT)
+            self.mute_button.generate_button()
 
-            mute_label = tk.Label(song_info_row1_canvas, text="Mute", font=("Poppins Regular", 12), underline=0)
-            mute_label.pack(anchor="center", side=tk.RIGHT, padx=(0, 5))
-            self.widgets.append(mute_label)
+            self.mute_label = tk.Label(music_info_row1_canvas, text="Mute", font=("Poppins Regular", 12), underline=0)
+            self.mute_label.pack(anchor="center", side=tk.RIGHT, padx=(0, 5))
+            self.widgets.append(self.mute_label)
 
             self.finish_init()
+
+        def on_mute_button(self):
+            if self.app.volume.get() != 0:  # Mutes
+                self.app.last_volume = self.app.volume.get()
+                self.app.volume.set(0)
+                self.mute_label.config(text="Unmute", underline=2)
+                self.mute_button.image = ImageTk.PhotoImage(Image.open("assets/icons/unmute.png").convert("RGBA").resize((25, 25)))
+            else:  # Unmutes to last volume
+                if self.app.last_volume == 0:
+                    self.app.last_volume = 50
+                self.app.volume.set(self.app.last_volume)
+                self.mute_label.config(text="Mute", underline=0)
+                self.mute_button.image = ImageTk.PhotoImage(Image.open("assets/icons/mute.png").convert("RGBA").resize((25, 25)))
+            self.update_widgets_background(specific_widget=self.mute_label)  # Update label (UNMUTE/MUTE)
+            self.mute_button.generate_button()  # Regenerates mute button to update image
+
+        def on_skip_button(self):
+            # Caller should always be the game
+            if hasattr(self.caller, "play_music"):  # Check if caller has play_music option
+                self.caller.play_music()
+                self.music_label.config(text=os.path.splitext(os.path.basename(self.app.music_playing))[0] if self.app.music_playing is not None else "No music playing")
+                self.update_widgets_background(specific_widget=self.skip_label)
+                self.update_widgets_background(specific_widget=self.music_info_row3_canvas)
+                self.update_widgets_background(specific_widget=self.music_info_canvas)
+                pygame.mixer.music.pause()
+
+        def on_hide_button(self):
+            ...
 
         def on_keyboard_press(self, key):
             if key in ["escape", "p"]:
@@ -1407,6 +1452,8 @@ class Games:
             self.difficulty = difficulty
             print(f"Started Matching Tiles game with difficulty {difficulty}")
             self.time_penalise_multiplier = 0.2
+
+            self.app.music_playing = None
 
             self.canvas.config(bg=self.app.theme_data['accent'])
 
@@ -1471,7 +1518,7 @@ class Games:
 
             self.time_elapsed = []
             self.last_start_time = 0
-            self.schedule_time_update_id = None
+            self.schedule_loop_id = None  # Loop handles time updates and music end event
 
             self.finish_init()
 
@@ -1497,9 +1544,7 @@ class Games:
                 list_of_photos.extend([f"assets/matching_tiles/{folder}/{filename}" for filename in os.listdir(f"assets/matching_tiles/{folder}")])
 
             # Checks if file has ".png"
-            for file in list_of_photos:
-                if ".png" not in file:
-                    list_of_photos.remove(file)
+            list_of_photos = [file for file in list_of_photos if ".png" in file]
 
             random.shuffle(list_of_photos)  # Shuffles all photos
             list_of_photos = list_of_photos[:(rows * columns) // 2]  # Cuts list to number of squares divided by 2 (round down)
@@ -1530,19 +1575,66 @@ class Games:
                         self.grid[row][col]['found'] = True
                         self.change_grid_button_bg(row, col, "#6f727b", "#6f727b", "#6f727b")
 
+        def loop_handler(self):
+            self.update_time()
+            self.check_music_event()
+
+            if self.schedule_loop_id is not None:
+                self.game_canvas.after_cancel(self.schedule_loop_id)
+            self.schedule_loop_id = self.game_canvas.after(100, self.loop_handler)  # Loops after 100ms or 0.1s
+
+        def play_music(self):
+            # Add each item with path to list_of_photos
+            list_of_music = [f"assets/music/{self.difficulty}/{filename}" for filename in os.listdir(f"assets/music/{self.difficulty}")]
+            # Checks if file has ".mp3" or ".wav"
+            list_of_music = [file for file in list_of_music if ".mp3" in file or ".wav" in file]
+            print(f"List of music: {list_of_music}")
+
+            if not list_of_music:  # List of music is empty
+                print("No music to play, the list is empty")
+                self.app.music_playing = None
+            if set(list_of_music).issubset(self.app.hidden_music):  # List of music is all hidden
+                print("No music to play, all hidden")
+                self.app.music_playing = None
+            elif visible_music := [song for song in list_of_music if song not in self.app.hidden_music]:  # Ensures visible music list is not None (assigns variable and checks at once)
+                self.app.music_playing = random.choice(visible_music)
+            else:
+                print("No music to play, all hidden")
+                self.app.music_playing = None
+
+            if self.app.music_playing is not None:
+                pygame.mixer.music.load(self.app.music_playing)
+                pygame.mixer.music.set_volume(((self.app.volume.get() / 100) * 2) / 20)  # Double percentage then divide by 20 since it is too loud
+                print(f"Playing music \"{self.app.music_playing}\" with volume: {pygame.mixer.music.get_volume()}")
+                pygame.mixer.music.play(fade_ms=3000)  # Fade in in 3s
+
+        def check_music_event(self):
+            for event in pygame.event.get():
+                if event.type == self.app.MUSIC_END_EVENT:
+                    print("Detected music ended, playing next music")
+                    self.play_music()
+
         # Stops timer and goes to pause menu
         def on_pause(self):
             if self.game_started is True:
                 self.time_elapsed.append(time.time() - self.last_start_time)
-                if self.schedule_time_update_id is not None:
-                    self.game_canvas.after_cancel(self.schedule_time_update_id)
+                if self.schedule_loop_id is not None:
+                    self.game_canvas.after_cancel(self.schedule_loop_id)
+
+            print("Music paused")
+            pygame.mixer.music.pause()
+
             self.app.show_overlaying_screen(Screens.PauseMenu(self.root, self.app, self.game, self.difficulty, self).get())
 
         # Continues the timer
         def on_unpause(self):
+            pygame.mixer.music.set_volume(((self.app.volume.get() / 100) * 2) / 20)  # Double percentage then divide by 20 since it is too loud
+            print(f"Resuming music with volume: {pygame.mixer.music.get_volume()}")
+            pygame.mixer.music.unpause()
+
             if self.game_started is True:
                 self.last_start_time = time.time()
-                self.update_time()
+                self.loop_handler()  # Starts loop for time update and music end event
 
         # Starts the game and timer
         def on_click_start(self):
@@ -1551,10 +1643,12 @@ class Games:
             self.start_button.destroy()
             self.game_canvas.pack(anchor="center", pady=(30, 0), expand=True)
 
-            self.last_start_time = time.time()
-            self.update_time()
+            self.play_music()
 
-        # Should loop, updates the time label at the top bar
+            self.last_start_time = time.time()
+            self.loop_handler()  # Starts loop for time update and music end event
+
+        # Loops and called from self.loop_handler
         def update_time(self):
             seconds_taken = sum(self.time_elapsed) + (time.time() - self.last_start_time)
             if seconds_taken < 3600:
@@ -1563,11 +1657,7 @@ class Games:
                 time_taken = time.strftime("%H:%M:%S", time.gmtime(seconds_taken))
             self.time_label.config(text=f"Time Elapsed: {time_taken}")
 
-            self.update_score()
-
-            if self.schedule_time_update_id is not None:
-                self.game_canvas.after_cancel(self.schedule_time_update_id)
-            self.schedule_time_update_id = self.game_canvas.after(100, self.update_time)
+            self.update_score()  # Score may be affected by time elapsed, so it needs to be updated
 
         # Recalculate score and change label at top bar
         def update_score(self):
@@ -1623,6 +1713,10 @@ class Games:
                 self.change_grid_button_bg(row, col, "#61a252", "#61a252", "#61a252")
                 self.change_grid_button_bg(row2, col2, "#61a252", "#61a252", "#61a252")
 
+                sound = pygame.mixer.Sound("assets/sound_effects/correct.mp3")
+                sound.set_volume((self.app.volume.get() / 100) * 2)  # Make volume percentage doubled
+                sound.play()
+
             # Incorrect
             else:
                 # Makes background red
@@ -1633,6 +1727,10 @@ class Games:
                     self.mistakes += 1
                     self.mistakes_label.config(text=f"Mistakes: {self.mistakes}")
                     self.update_score()
+
+                    sound = pygame.mixer.Sound("assets/sound_effects/wrong.mp3")
+                    sound.set_volume((self.app.volume.get() / 100) * 2)  # Make volume percentage doubled
+                    sound.play()
 
             self.grid[row][col]['revealed'] = True
             self.grid[row2][col2]['revealed'] = True
@@ -1666,13 +1764,17 @@ class Games:
         def on_finish_game(self):
             self.game_started = False
             self.time_elapsed.append(time.time() - self.last_start_time)
-            if self.schedule_time_update_id is not None:
-                self.game_canvas.after_cancel(self.schedule_time_update_id)
+            if self.schedule_loop_id is not None:
+                self.game_canvas.after_cancel(self.schedule_loop_id)
             self.game_canvas.destroy()
 
             self.score_label.destroy()
             self.mistakes_label.destroy()
             self.time_label.destroy()
+
+            pygame.mixer.music.fadeout(3000)  # Fade out in 3s
+            self.app.music_playing = None
+            print("Music stopping")
 
             summary_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0, bg="white")
             summary_canvas.pack(anchor="center", expand=True)
