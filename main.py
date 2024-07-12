@@ -1,6 +1,7 @@
 import contextlib
 import hashlib
 import json
+from ctypes import windll
 import math
 import os
 import random
@@ -2207,6 +2208,9 @@ if __name__ == "__main__":
     pyglet.options["win32_gdi_font"] = True
     pyglet.font.add_file("assets/fonts/Poppins-Bold.ttf")
     pyglet.font.add_file("assets/fonts/Poppins-Regular.ttf")
+
+    # Prevents blurring of the window
+    windll.shcore.SetProcessDpiAwareness(1)
 
     # Create the root window
     root = tk.Tk()
