@@ -1246,7 +1246,7 @@ class Screens:
             if self.original_theme != self.app.theme:
                 # Only update theme if not in game
                 self.app.finish_overlaying_screen(self.get(), screen=self.caller.__class__(self.root, self.app).get())  # Recreates class so the themes are updated
-                self.caller.setup_keypress_listener()
+                # Keypress does not need to be re-setup since a new screen will be created
                 del self
                 return
 
