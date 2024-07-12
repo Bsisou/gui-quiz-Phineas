@@ -1340,6 +1340,9 @@ class Screens:
             for widget in self.list_canvas.winfo_children():
                 widget.destroy()
 
+            while None in self.app.hidden_music:
+                self.app.hidden_music.remove(None)
+
             if not self.app.hidden_music:
                 tk.Label(self.list_canvas, text="No Hidden Songs.", bg=self.app.theme_data['accent'], font=("Poppins Regular", 15)).pack(anchor=tk.CENTER, pady=(100, 0))
             else:
