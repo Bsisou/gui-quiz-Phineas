@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 import json
 import math
@@ -179,6 +180,23 @@ class RecollectApp:
             data_file.seek(0)
             data_file.truncate()
             json.dump(data, data_file, indent=2)
+
+    # Apply changes on sign in for a user
+    def apply_user_options(self, user_data):
+        # Apply account options (theme, volume, etc.) if any
+        try:
+            self.volume.set(int(user_data['options']['volume']))
+        except KeyError:
+            print("User has no volume data, continuing with existing options")
+        try:
+            self.theme = user_data['options']['theme']
+            self.theme_data = self.themes[self.theme]
+        except KeyError:
+            print("User has no theme data, continuing with existing options")
+        try:
+            self.hidden_music = user_data['options']['hidden_music']
+        except KeyError:
+            print("User has no music data, continuing with existing options")
 
     # Get the game data for a user
     def get_game_data(self, username, game):
@@ -487,7 +505,10 @@ class Screens:
             if self.app.username is None or self.app.get_user_data(self.app.username) is None:  # Not logged in or username not in data for some reason
                 self.app.username = None
                 self.app.show_screen(Screens.Login(self.root, self.app).get())
-            else:
+            else:  # User is already signed in
+                user_data = self.app.get_user_data(self.app.username)
+                if user_data is not None:  # Apply user data if it exists
+                    self.app.apply_user_options(user_data)
                 self.app.show_screen(Screens.GameSelection(self.root, self.app).get())
 
         def on_options_button(self):
@@ -696,13 +717,8 @@ class Screens:
             # Password is correct / Account created
             self.app.username = entered_username
 
-            # Apply account options (theme, volume, etc.) if any
-            try:
-                self.app.volume.set(int(user_data['options']['volume']))
-                self.app.theme = user_data['options']['theme']
-                self.app.theme_data = self.app.themes[user_data['options']['theme']]
-            except KeyError:
-                print("User has no options data, continuing with existing options")
+            # Apply options from user data
+            self.app.apply_user_options(user_data)
 
             # Move to next screen
             self.destroy()
@@ -1065,7 +1081,7 @@ class Screens:
                 button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
                 button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
                 outline_colour=self.app.theme_data['outline'], outline_width=1,
-                command=None
+                command=self.view_hidden_music
             )
             hidden_music_button.pack(anchor=tk.CENTER, pady=(5, 0))
             self.widgets.append(hidden_music_button)
@@ -1156,6 +1172,11 @@ class Screens:
             self.volume_button.itemconfig(self.volume_text_id, text=f"VOLUME: {self.app.volume.get()}%  ")
             self.mute_button.generate_button()  # Regenerates mute button to update label (UNMUTE/MUTE)
 
+        def view_hidden_music(self):
+            self.canvas.pack_forget()
+            self.app.show_overlaying_screen(Screens.HiddenMusicList(self.root, self.app, self).get())
+            del self
+
         # Generates theme button
         def gen_theme_button(self, button):
             first_text = "THEME: "
@@ -1201,6 +1222,8 @@ class Screens:
             # Allows support for old accounts (prevents KeyError)
             if "options" not in current_user_data:
                 current_user_data['options'] = {}
+            if "hidden_music" not in current_user_data['options']:
+                current_user_data['options']['hidden_music'] = []
 
             current_user_data['options']['volume'] = int(self.app.volume.get())
             current_user_data['options']['theme'] = self.app.theme
@@ -1235,6 +1258,150 @@ class Screens:
             self.app.username = None
             self.app.finish_overlaying_screen(self.get())
             self.app.show_screen(Screens.Homepage(self.root, self.app).get())
+            del self
+
+    class HiddenMusicList(BaseScreen):
+        def __init__(self, root: tk.Tk, app: RecollectApp, caller):
+            super().__init__(root, app, True, False)  # Implements all variables and function from base class "BaseScreen"
+            self.caller = caller
+
+            self.selected_game = None
+
+            accessibility_info_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
+            accessibility_info_canvas.pack(padx=(0, 3), anchor="nw", fill="x")
+            self.widgets.append(accessibility_info_canvas)
+
+            accessibility_info_label = tk.Label(accessibility_info_canvas, text="Accessibility: Press the corresponding number for quick navigation, press O for options", font=("Poppins Regular", 7))
+            accessibility_info_label.pack(anchor="n", side=tk.RIGHT)
+            self.widgets.append(accessibility_info_label)
+
+            logo_canvas = tk.Canvas(self.canvas, borderwidth=0, highlightthickness=0)
+            logo_canvas.pack(pady=(0, 0), padx=(10, 0), anchor="nw", fill="x")
+            self.widgets.append(logo_canvas)
+
+            logo_image = Image.open("assets/logo_slash.png").convert("RGBA").resize((230, 90))  # Must be multiple of 935 x 306
+            logo_label = tk.Label(logo_canvas, borderwidth=0, highlightthickness=0)
+            image_data = {
+                "label": logo_label,
+                "raw_image": logo_image,
+                "updated_image": ImageTk.PhotoImage(logo_image)  # Used to save only
+            }
+            logo_label.config(image=image_data['updated_image'])
+            logo_label.pack(anchor="nw", padx=(5, 0), pady=(0, 3), side=tk.LEFT)
+            self.transparent_images.append(image_data)
+            del logo_image
+
+            self.logo_title = tk.Label(logo_canvas, text="Hidden Music List", font=("Poppins Regular", 15))
+            self.logo_title.pack(anchor="nw", pady=(19, 0), side=tk.LEFT)
+            self.widgets.append(self.logo_title)
+
+            back_button = RoundedButton(
+                self.canvas, text="BACK", font=("Poppins Bold", 15, "bold"),
+                width=210, height=50, radius=29, text_padding=0,
+                button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                outline_colour=self.app.theme_data['outline'], outline_width=1,
+                command=self.on_back
+            )
+            back_button.pack(pady=(5, 0), padx=(10, 0), anchor="nw")
+            self.widgets.append(back_button)
+
+            self.list_outer_frame = tk.Frame(self.canvas, bd=0, borderwidth=0, highlightthickness=0, bg=self.app.theme_data['accent'])
+            self.list_outer_frame.pack(fill=tk.BOTH, expand=True)
+
+            self.list_inner_canvas = tk.Canvas(self.list_outer_frame, bg=self.app.theme_data['accent'], bd=0, borderwidth=0, highlightthickness=0)
+            self.list_inner_canvas.pack(anchor=tk.CENTER, side=tk.LEFT, fill=tk.Y, expand=True)
+
+            scrollbar = tk.Scrollbar(self.list_outer_frame, orient=tk.VERTICAL, command=self.list_inner_canvas.yview)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+            self.list_inner_canvas.configure(yscrollcommand=scrollbar.set)
+            self.root.update()
+            self.list_inner_canvas.bind("<Configure>", lambda e: self.list_inner_canvas.configure(scrollregion=self.list_inner_canvas.bbox("all")))
+
+            self.list_canvas = tk.Canvas(self.list_inner_canvas, bg=self.app.theme_data['accent'], bd=0, borderwidth=0, highlightthickness=0)
+
+            self.update_hidden_music_list()
+
+            self.list_inner_canvas.create_window((0, 0), window=self.list_canvas, anchor="nw")
+
+            self.list_inner_canvas.bind("<MouseWheel>", self.on_mouse_wheel)
+            self.list_canvas.bind("<MouseWheel>", self.on_mouse_wheel)
+            for child in self.list_canvas.children.values():
+                child.bind("<MouseWheel>", self.on_mouse_wheel)
+
+            # Fixes game button canvas getting cut off
+            self.root.update()
+            x1, y1, x2, y2 = self.list_inner_canvas.bbox("all")
+            self.list_inner_canvas.config(width=x2 - x1, height=y2 - y1)
+
+            self.finish_init()
+
+        def on_keyboard_press(self, key):
+            if key == "b":
+                self.root.unbind("<KeyRelease>")
+                self.on_back()
+
+        # Scrolls the game canvas
+        def on_mouse_wheel(self, event):
+            self.list_inner_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def update_hidden_music_list(self):
+            for widget in self.list_canvas.winfo_children():
+                widget.destroy()
+
+            if not self.app.hidden_music:
+                tk.Label(self.list_canvas, text="No Hidden Songs.", bg=self.app.theme_data['accent'], font=("Poppins Regular", 15)).pack(anchor=tk.CENTER, pady=(100, 0))
+            else:
+                tk.Label(self.list_canvas, text="Click on a music to un-hide it.", bg=self.app.theme_data['accent'], font=("Poppins Regular", 15)).pack(anchor=tk.CENTER, pady=(10, 0))
+
+            for hidden_item in self.app.hidden_music:
+                print(hidden_item)
+                item_button = RoundedButton(
+                    self.list_canvas, text=os.path.splitext(os.path.basename(hidden_item))[0], font=("Poppins Regular", 15),
+                    width=450, height=50, radius=29, text_padding=0,
+                    bg=self.app.theme_data['accent'],
+                    button_background=self.app.theme_data['btn_bg'], button_foreground="#000000",
+                    button_hover_background=self.app.theme_data['btn_hvr'], button_hover_foreground="#000000",
+                    button_press_background=self.app.theme_data['btn_prs'], button_press_foreground="#000000",
+                    outline_colour=self.app.theme_data['outline'], outline_width=1,
+                    command=lambda item=hidden_item: self.remove_hidden_music(item)
+                )
+                item_button.pack(anchor=tk.CENTER, padx=(5, 5), pady=(10, 10))
+
+        def remove_hidden_music(self, hidden_item):
+            if hidden_item in self.app.hidden_music:
+                self.app.hidden_music.remove(hidden_item)
+                print(f"Removed {hidden_item} from list of hidden items")
+
+            # Save the options to the user data file
+
+            # Makes sure user is signed in
+            if self.app.username is None:
+                return
+
+            current_user_data = self.app.get_user_data(self.app.username)
+            if current_user_data is None:  # User has no data for some reason
+                self.app.username = None  # Log out and allow the user to sign in again
+                return
+
+            # Allows support for old accounts (prevents KeyError)
+            if "options" not in current_user_data:
+                current_user_data['options'] = {}
+            if "hidden_music" not in current_user_data['options']:
+                current_user_data['options']['hidden_music'] = []
+
+            current_user_data['options']['hidden_music'] = self.app.hidden_music
+
+            self.app.rewrite_user_data(self.app.username, current_user_data)
+
+            self.update_hidden_music_list()
+
+        def on_back(self, _=None):
+            self.get().destroy()  # Can't use finish_overlaying_screen since it will pack current screen
+            self.caller.canvas.pack(side="top", fill=tk.BOTH, expand=True)  # Packs pause menu
+            self.caller.setup_keypress_listener()
             del self
 
     class PauseMenu(BaseScreen):
@@ -1408,7 +1575,32 @@ class Screens:
                 pygame.mixer.music.pause()
 
         def on_hide_button(self):
-            ...
+            print(f"Hiding music: {self.app.music_playing}")
+            self.app.hidden_music.append(self.app.music_playing) if self.app.music_playing not in self.app.hidden_music else self.app.hidden_music
+            print(f"New hidden list of music: {self.app.hidden_music}")
+
+            self.on_skip_button()
+
+            # Save the options to the user data file
+
+            # Makes sure user is signed in
+            if self.app.username is None:
+                return
+
+            current_user_data = self.app.get_user_data(self.app.username)
+            if current_user_data is None:  # User has no data for some reason
+                self.app.username = None  # Log out and allow the user to sign in again
+                return
+
+            # Allows support for old accounts (prevents KeyError)
+            if "options" not in current_user_data:
+                current_user_data['options'] = {}
+            if "hidden_music" not in current_user_data['options']:
+                current_user_data['options']['hidden_music'] = []
+
+            current_user_data['options']['hidden_music'] = self.app.hidden_music
+
+            self.app.rewrite_user_data(self.app.username, current_user_data)
 
         def on_keyboard_press(self, key):
             if key in ["escape", "p"]:
@@ -1593,11 +1785,15 @@ class Games:
             if not list_of_music:  # List of music is empty
                 print("No music to play, the list is empty")
                 self.app.music_playing = None
-            if set(list_of_music).issubset(self.app.hidden_music):  # List of music is all hidden
+            elif set(list_of_music).issubset(self.app.hidden_music):  # List of music is all hidden
                 print("No music to play, all hidden")
                 self.app.music_playing = None
-            elif visible_music := [song for song in list_of_music if song not in self.app.hidden_music]:  # Ensures visible music list is not None (assigns variable and checks at once)
-                self.app.music_playing = random.choice(visible_music)
+            elif visible_music := [music for music in list_of_music if music not in self.app.hidden_music]:  # Ensures visible music list is not None (assigns variable and checks at once)
+                print(f"List of available music: {visible_music}")
+                with contextlib.suppress(ValueError):
+                    visible_music.remove(self.app.music_playing)  # Prevents looping of the same music
+                if visible_music:  # If the only music is not current playing, otherwise it will loop
+                    self.app.music_playing = random.choice(visible_music)
             else:
                 print("No music to play, all hidden")
                 self.app.music_playing = None
