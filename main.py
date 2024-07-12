@@ -1,17 +1,16 @@
 import contextlib
 import hashlib
 import json
-from ctypes import windll
 import math
 import os
 import random
 import time
 import tkinter as tk
 import tkinter.font as tk_font
-import pygame
+from ctypes import windll
 
+import pygame
 # Install from requirements.txt using command: pip install -r requirements.txt
-import psutil  # for memory usage only - pip install psutil
 import pyglet  # pip install pyglet
 from PIL import Image, ImageTk, ImageDraw, ImageOps  # pip install pillow
 
@@ -19,11 +18,6 @@ from PIL import Image, ImageTk, ImageDraw, ImageOps  # pip install pillow
 # https://www.no-copyright-music.com/
 # Command to cut and fade out from 0 to 90 sec
 # ffmpeg -ss 00:00:00 -to 00:01:30 -i "inputpath" -af "afade=t=out:st=83:d=5" -c:a libmp3lame "outputpath"
-
-# Get memory usage
-def get_memory():
-    print(f"Memory usage: {psutil.Process(os.getpid()).memory_info().rss / 1e+6} MB")
-
 
 # Main app that runs including screen management, data handling, etc.
 class RecollectApp:
@@ -312,9 +306,6 @@ class BaseScreen:
         self.transparent_images = []
         self.widgets = []
 
-        print("Created screen with memory usage:")
-        get_memory()
-
     # Should be called after initialisation is finished
     def finish_init(self):
         self.setup_keypress_listener()  # Sets up listener for key releases
@@ -329,9 +320,6 @@ class BaseScreen:
             self.canvas.bind("<Configure>", self.update_widgets_background, add="+")
         if self.has_blobs:
             self.canvas.bind("<Configure>", self.update_blobs, add="+")
-
-        print("Finished creating screen with memory usage:")
-        get_memory()
 
     # Returns the screen
     def get(self):
@@ -1358,7 +1346,6 @@ class Screens:
                 tk.Label(self.list_canvas, text="Click on a music to un-hide it.", bg=self.app.theme_data['accent'], font=("Poppins Regular", 15)).pack(anchor=tk.CENTER, pady=(10, 0))
 
             for hidden_item in self.app.hidden_music:
-                print(hidden_item)
                 item_button = RoundedButton(
                     self.list_canvas, text=os.path.splitext(os.path.basename(hidden_item))[0], font=("Poppins Regular", 15),
                     width=450, height=50, radius=29, text_padding=0,
